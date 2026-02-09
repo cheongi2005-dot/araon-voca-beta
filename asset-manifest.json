@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.css": "/cheongi2005-dot/araon-voca-beta/static/css/main.e6c13ad2.css",
-    "main.js": "/cheongi2005-dot/araon-voca-beta/static/js/main.9084f0ec.js",
-    "index.html": "/cheongi2005-dot/araon-voca-beta/index.html",
-    "main.e6c13ad2.css.map": "/cheongi2005-dot/araon-voca-beta/static/css/main.e6c13ad2.css.map",
-    "main.9084f0ec.js.map": "/cheongi2005-dot/araon-voca-beta/static/js/main.9084f0ec.js.map"
+    "main.css": "/araon-voca-beta/static/css/main.e6c13ad2.css",
+    "main.js": "/araon-voca-beta/static/js/main.9084f0ec.js",
+    "index.html": "/araon-voca-beta/index.html",
+    "main.e6c13ad2.css.map": "/araon-voca-beta/static/css/main.e6c13ad2.css.map",
+    "main.9084f0ec.js.map": "/araon-voca-beta/static/js/main.9084f0ec.js.map"
   },
   "entrypoints": [
     "static/css/main.e6c13ad2.css",
