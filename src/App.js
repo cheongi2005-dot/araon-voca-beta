@@ -1,19 +1,19 @@
 import 'pretendard/dist/web/static/pretendard.css';
 import React from 'react';
-// BrowserRouter를 Router로 임포트
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import MyVoca from './pages/MyVoca';
 import LevelTemplate from './pages/LevelTemplate';
 
 function App() {
+  /**
+   * 💡 해결 포인트:
+   * Vercel은 루트(/) 경로를 기본으로 사용합니다. 
+   * 기존의 '/araon-voca-beta'는 GitHub Pages용 경로였기 때문에, 
+   * Vercel에서는 이를 지우거나 '/'로 설정해야 화면이 정상적으로 출력됩니다.
+   */
   return (
-    /**
-     * basename: 프로젝트가 /araon-voca-beta 경로에서 실행 중임을 라우터에 알립니다.
-     * future: v7 업데이트 대비 경고창을 제거합니다.
-     */
     <Router 
-      basename="/araon-voca-beta" 
       future={{ 
         v7_startTransition: true, 
         v7_relativeSplatPath: true 
@@ -21,9 +21,13 @@ function App() {
     >
       <div className="App">
         <Routes>
+          {/* 기본 홈 화면 */}
           <Route path="/" element={<Home />} />
+          
+          {/* 나의 단어장 페이지 */}
           <Route path="/my-voca" element={<MyVoca />} />
-          {/* 이제 /araon-voca-beta/ 이후에 오는 값만 levelId로 들어옵니다! */}
+          
+          {/* 레벨별 학습 페이지 (Level1, Elementary100 등) */}
           <Route path="/:levelId" element={<LevelTemplate />} />
         </Routes>
       </div>
