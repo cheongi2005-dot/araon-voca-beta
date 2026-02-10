@@ -1,0 +1,18 @@
+/* 설치한 Pretendard 패키지에서 폰트를 불러옵니다. */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css");
+
+body {
+  margin: 0;
+  /* Pretendard를 최우선으로 설정합니다. */
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  /* 코드 폰트는 가독성을 위해 기존의 고정폭(monospace) 폰트를 유지하거나 취향껏 변경하세요. */
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
