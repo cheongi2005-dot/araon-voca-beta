@@ -3,17 +3,17 @@
   "short_name": "Araon Voca",
   "icons": [
     {
-      "src": "logo_v2_512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "web-app-manifest-192x192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    "src": "logo-v2-192.png",
+    "sizes": "192x192",
+    "type": "image/png",
+    "purpose": "any" 
+  },
+  {
+    "src": "logo-v2-512.png",
+    "sizes": "512x512",
+    "type": "image/png",
+    "purpose": "maskable" 
+  }
   ],
   "start_url": ".",
   "display": "standalone",
