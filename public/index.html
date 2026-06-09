@@ -1,64 +1,128 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    
-    <meta name="theme-color" content="#F8F9FA" />
-    <meta name="description" content="아라온 스쿨 영단어 학습 시스템" />
-    
-    <link rel="manifest" href="%PUBLIC_URL%/site.webmanifest" />
+    <head>
+        <meta charset="utf-8"/>
+        <link rel="icon" href="/favicon.ico"/>
+        <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" crossorigin />
+        <meta name="theme-color" content="#F8F9FA"/>
+        <meta name="description" content="아라온 스쿨 영단어 학습 시스템"/>
+        <link rel="manifest" href="/site.webmanifest"/>
+        <link rel="apple-touch-icon" sizes="512x512" href="/logo_v2_512.png"/>
+        <link rel="icon" type="image/png" sizes="96x96" href="/logo-v2-192.png">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
+        <title>Araon Voca Master</title>
+        <style>
+            @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+            @keyframes fadeInDown{from{opacity:0;transform:translate3d(0,-20px,0)}to{opacity:1;transform:none}}
+            .animate__animated{animation-duration:.4s;animation-fill-mode:both}
+            .animate__fadeIn{animation-name:fadeIn}
+            .animate__fadeInDown{animation-name:fadeInDown}
+        </style>
+        <script>
+            (function() {
+                try {
+                    if (localStorage.getItem('theme') === 'dark') {
+                        document.documentElement.classList.add('dark');
+                    }
+                } catch(e) {}
+            })();
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1" defer crossorigin="anonymous"></script>
+        <style>
+            body {
+                font-family: Pretendard,sans-serif;
+                -webkit-tap-highlight-color: transparent;
+                overscroll-behavior-y: none;
+                background-color: #f8f9fa;
+                padding-top: env(safe-area-inset-top,0);
+                padding-bottom: env(safe-area-inset-bottom,0);
+                min-height: 100dvh
+            }
 
-    <link rel="apple-touch-icon" sizes="512x512" href="%PUBLIC_URL%/logo_v2_512.png" />
-    <link rel="icon" type="image/png" sizes="96x96" href="%PUBLIC_URL%/logo-v2-192.png">
-    <link rel="icon" type="image/svg+xml" href="%PUBLIC_URL%/favicon.svg">
-    
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default"> 
-    
-    <title>Araon Voca Master</title>
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
-
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: { extend: { colors: { primary: '#2A61FF' } } }
-      }
-    </script>
-
-    <style>
-      @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css');      
-      
-      body { 
-        font-family: 'Pretendard', sans-serif; 
-        -webkit-tap-highlight-color: transparent; 
-        overscroll-behavior-y: none; 
-        background-color: #F8F9FA;
+            .dark body { background-color: #0a0a0b!important }
+            .no-select { -webkit-user-select: none; user-select: none }
+        </style>
+    </head>
+    <body class="no-select">
+        <noscript>이 앱을 실행하려면 자바스크립트가 필요합니다.</noscript>
         
-        /* ✅ 노치 및 하단 바 영역 대응 수정 */
-        padding-top: env(safe-area-inset-top, 0px);
-        padding-bottom: env(safe-area-inset-bottom, 0px);
-        padding-left: env(safe-area-inset-left, 0px);
-        padding-right: env(safe-area-inset-right, 0px);
-        
-        /* 모바일 툴바를 제외한 실제 화면 높이 대응 */
-        min-height: 100dvh;
-      }
-      
-      .dark body {
-        background-color: #0A0A0B !important;
-      }
-      
-      .no-select { -webkit-user-select: none; user-select: none; }
-    </style>
-  </head>
-  <body class="no-select">
-    <noscript>이 앱을 실행하려면 자바스크립트가 필요합니다.</noscript>
-    <div id="root"></div>
-  </body>
+        <div id="root">
+            <style>
+                #initial-loader {
+                    position: fixed; inset: 0; z-index: 9999;
+                    display: flex; flex-direction: column; align-items: center; justify-content: center;
+                    padding: 2.5rem; background-color: #F8F9FA; transition: background-color 0.5s; font-family: Pretendard, sans-serif;
+                }
+                #initial-loader .loader-box { width: 100%; max-width: 20rem; display: flex; flex-direction: column; align-items: center; }
+                #initial-loader .qa-section { width: 100%; margin-bottom: 4rem; }
+                #initial-loader .q-text { font-size: 1rem; font-weight: 900; line-height: 1.25; color: #27272a; margin-bottom: 0.75rem; }
+                #initial-loader .q-mark { color: #70011D; margin-right: 0.5rem; }
+                #initial-loader .a-text { font-size: 13px; font-weight: 500; line-height: 1.625; color: #71717a; margin: 0; }
+                #initial-loader .a-mark { color: #6366f1; font-weight: 900; margin-right: 0.5rem; }
+                #initial-loader .bar-section { width: 100%; }
+                #initial-loader .bar-header { display: flex; justify-content: space-between; align-items: center; padding: 0 0.25rem; margin-bottom: 0.5rem; }
+                #initial-loader .bar-label { font-size: 10px; font-weight: 900; color: #a1a1aa; letter-spacing: 0.1em; text-transform: uppercase; }
+                #initial-loader .bar-percent { font-size: 10px; font-weight: 900; color: #70011D; }
+                #initial-loader .bar-bg { width: 100%; height: 4px; background-color: #e4e4e7; border-radius: 9999px; overflow: hidden; }
+                #initial-loader .bar-fill { width: 0%; height: 100%; background-color: #70011D; border-radius: 9999px; transition: width 0.3s ease-out; }
+                .dark #initial-loader { background-color: #0A0A0B; }
+                .dark #initial-loader .q-text { color: #ffffff; }
+                .dark #initial-loader .q-mark { color: #FF4D4D; }
+                .dark #initial-loader .a-text { color: #a1a1aa; }
+                .dark #initial-loader .bar-percent { color: #FF4D4D; }
+                .dark #initial-loader .bar-bg { background-color: #27272a; }
+                .dark #initial-loader .bar-fill { background-color: #FF4D4D; }
+            </style>
+
+            <div id="initial-loader">
+                <div class="loader-box">
+                    <div class="qa-section">
+                        <p class="q-text">
+                            <span class="q-mark">Q.</span>데이터를 준비하고 있어요!
+                        </p>
+                        <p class="a-text">
+                            <span class="a-mark">A.</span>잠시만 기다려 주시면 단어장이 열립니다. 매일 꾸준히 접속하는 게 가장 큰 비결이에요!
+                        </p>
+                    </div>
+                    
+                    <div class="bar-section">
+                        <div class="bar-header">
+                            <span class="bar-label">Loading</span>
+                            <span class="bar-percent">0%</span>
+                        </div>
+                        <div class="bar-bg">
+                            <div class="bar-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+        (function() {
+            const percentEl = document.querySelector('.bar-percent');
+            const fillEl = document.querySelector('.bar-fill');
+            let progress = 0;
+
+            // 업데이트 주기를 150ms -> 300ms로 늦추기
+            const interval = setInterval(() => {
+                if (progress < 95) {
+                    // 오르는 폭을 1~5% -> 1~3%로 줄여서 천천히 차오르게
+                    progress += Math.floor(Math.random() * 3) + 1; 
+                    if (progress > 95) progress = 95;
+                    
+                    if (percentEl) percentEl.innerText = progress + '%';
+                    if (fillEl) fillEl.style.width = progress + '%';
+                } else {
+                    clearInterval(interval);
+                }
+            }, 300); 
+        })();
+        </script>
+
+    </body>
 </html>

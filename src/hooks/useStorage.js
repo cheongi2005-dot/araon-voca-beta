@@ -1,55 +1,69 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { safeGetItem, safeSetItem } from '../utils/storage';
+import { addMistakeWord, migrateAttempts, refreshMistakesCache } from '../utils/mistakes';
 
 export const useStorage = (key) => {
-  const [data, setData] = useState(() => JSON.parse(localStorage.getItem(key) || '{}'));
+  const [data, setData] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
 
-  // 오답 추가 로직
+  useEffect(() => {
+    setIsLoading(true);
+    const parsed = safeGetItem(key, {});
+    if (!parsed.lastUpdated) parsed.lastUpdated = 0;
+    setData(parsed);
+    setIsLoading(false);
+  }, [key]);
+
+  const syncFromDB = useCallback((dbData) => {
+    if (!dbData || !dbData.lastUpdated) return;
+    if (dbData.lastUpdated > (data.lastUpdated || 0)) {
+      const restoredData = JSON.parse(JSON.stringify(dbData));
+      Object.keys(restoredData).forEach(dayKey => {
+        if (dayKey === 'lastUpdated') return;
+        const day = restoredData[dayKey];
+        if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
+      });
+      setData(restoredData);
+      safeSetItem(key, JSON.stringify(restoredData));
+      refreshMistakesCache();
+    }
+  }, [key, data.lastUpdated]);
+
   const addMistake = useCallback((day, word) => {
     setData(prev => {
-      const dayData = prev[day] || { attempts: [[]] };
-      const currentMistakes = dayData.attempts[0] || [];
+      const dayData = prev[day] || { attempts: {} };
       const wordString = typeof word === 'object' ? word.word : word;
-      
-      if (currentMistakes.includes(wordString)) return prev;
-
       const updated = {
         ...prev,
-        [day]: { ...dayData, attempts: [[...currentMistakes, wordString]] }
+        [day]: { ...dayData, attempts: addMistakeWord(dayData.attempts, wordString) },
+        lastUpdated: Date.now()
       };
-      localStorage.setItem(key, JSON.stringify(updated));
+      safeSetItem(key, JSON.stringify(updated));
+      refreshMistakesCache();
       return updated;
     });
   }, [key]);
 
-  // ✅ 완료 및 모드별 최고 점수 저장 (mode 파라미터 추가)
   const saveProgress = useCallback((day, score, total, mode) => {
     setData(prev => {
       const currentDay = prev[day] || {};
       const currentScores = currentDay.scores || {};
-      
-      // 해당 모드(4지선다, 철자 등)의 이전 기록과 비교하여 최고점 갱신
-      const newModeScore = Math.max((currentScores[mode] || 0), score);
-
       const updated = {
         ...prev,
-        [day]: { 
-          ...currentDay, 
-          completed: true, 
-          // 1. 전체 통합 최고 점수 유지 (기존 UI 호환용)
+        [day]: {
+          ...currentDay,
+          completed: true,
           bestScore: Math.max((currentDay.bestScore || 0), score),
-          // 2. 모드별 개별 점수 저장소 운영 (신규 로직)
-          scores: {
-            ...currentScores,
-            [mode]: newModeScore
-          },
-          total 
-        }
+          scores: { ...currentScores, [mode]: Math.max((currentScores[mode] || 0), score) },
+          total
+        },
+        lastUpdated: Date.now()
       };
-      
-      localStorage.setItem(key, JSON.stringify(updated));
+      safeSetItem(key, JSON.stringify(updated));
+      refreshMistakesCache();
       return updated;
     });
   }, [key]);
 
-  return { data, addMistake, saveProgress };
+  return { data, isLoading, addMistake, saveProgress, syncFromDB };
 };

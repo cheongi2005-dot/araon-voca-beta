@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>개인정보 처리방침 - Vocaraon</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Pretendard', sans-serif; line-height: 1.7; color: #333; }
+        section { margin-bottom: 2rem; }
+        h2 { font-size: 1.125rem; font-weight: 800; margin-bottom: 0.75rem; color: #111; }
+        p, li { font-size: 0.875rem; color: #4b5563; }
+    </style>
+</head>
+<body class="bg-gray-50 p-6 md:p-12 pb-32">
+    <!-- ✅ 상단 뒤로가기 버튼 (항시 노출) -->
+    <div class="max-w-2xl mx-auto mb-6">
+        <button onclick="history.back()" class="flex items-center gap-2 text-zinc-400 hover:text-zinc-800 transition-colors font-bold text-sm">
+            <svg xmlns="http://www.w3.org/2003/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256"><path d="M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z"></path></svg>
+            이전으로 돌아가기
+        </button>
+    </div>
+
+    <div class="max-w-2xl mx-auto bg-white p-8 md:p-12 rounded-[2.5rem] shadow-sm border border-gray-100 relative">
+        <h1 class="text-3xl font-black mb-10 text-zinc-900 tracking-tight">개인정보 처리방침</h1>
+        
+        <section>
+            <h2>1. 수집하는 개인정보 항목 및 목적</h2>
+            <p>서비스는 회원가입 및 원활한 학습 관리를 위해 아래 정보를 수집합니다.</p>
+            <ul class="list-disc ml-5 mt-2 space-y-1">
+                <li>필수 항목: 이메일, 이름, 전화번호, 비밀번호</li>
+                <li>자동 수집: 학습 기록(점수, 시간), 기기 토큰(알림용), 접속 로그</li>
+                <li>목적: 본인 식별, 학습 진도 관리, 푸시 알림 전송</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>2. 만 14세 미만 아동의 보호</h2>
+            <p>서비스는 만 14세 미만 아동의 회원가입 시 <strong>법정대리인(부모님 등)의 동의</strong>를 반드시 확인합니다. 법정대리인은 아동의 개인정보에 대한 열람, 정정, 삭제를 요청할 수 있습니다.</p>
+        </section>
+
+        <section>
+            <h2>3. 개인정보 처리 위탁 (Firebase)</h2>
+            <p>서비스는 안정적인 데이터 보관을 위해 아래와 같이 업무를 위탁하고 있습니다.</p>
+            <ul class="list-disc ml-5 mt-2">
+                <li>수탁자: <strong>Google Cloud (Firebase)</strong></li>
+                <li>위탁 업무: 서비스 데이터 보관 및 인프라 관리, 알림 발송</li>
+                <li>이전 국가 및 방식: 미국 (국외 이전, SSL 암호화 통신)</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>4. 개인정보의 보유 및 파기</h2>
+            <p>회원 탈퇴 시 사용자의 개인정보는 지체 없이 파기됩니다. 다만, 부정 이용 방지를 위해 이름과 이메일은 30일간 보관 후 완전히 삭제합니다.</p>
+        </section>
+
+        <section>
+            <h2>5. 개인정보 보호책임자</h2>
+            <p>서비스 이용 중 발생하는 개인정보 관련 문의는 아래 책임자에게 연락해 주시기 바랍니다.</p>
+            <ul class="list-disc ml-5 mt-2 text-blue-600 font-bold italic">
+                <li>담당자: 아라온 보카 운영팀</li>
+                <li>이메일: di4377491@gmail.com</li>
+            </ul>
+        </section>
+
+        <div class="mt-12 pt-8 border-t border-gray-100 text-center text-zinc-400 text-[10px] uppercase tracking-widest">
+            &copy; 2026 Vocaraon. All rights reserved.
+        </div>
+    </div>
+
+    <!-- ✅ 조건부 버튼: 회원가입 중일 때(from=signup)만 노출 -->
+    <div id="signup-btn-container" class="hidden fixed bottom-0 left-0 w-full p-6 bg-white/90 backdrop-blur-lg border-t border-gray-100 flex justify-center z-50">
+        <button onclick="window.location.href='/?mode=signup&agreed=true'" class="w-full max-w-md py-4 bg-blue-600 text-white font-black text-base rounded-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center">
+            동의하고 회원가입하러 가기
+        </button>
+    </div>
+
+    <script>
+        // URL 파라미터 확인 후 버튼 노출 여부 결정
+        window.addEventListener('load', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('from') === 'signup') {
+                document.getElementById('signup-btn-container').classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+import { auth, db } from './firebase-config.js';
+import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+/**
+ * 학생의 학습 데이터를 Firestore에 저장합니다.
+ * @param {number} progress - 전체 진도율 (%)
+ * @param {number} score - 이번 세션 정답 개수
+ * @param {Array} wrongWords - 틀린 단어들의 리스트 (예: ['apple', 'banana'])
+ * @param {string} currentLevel - 현재 학습 중인 레벨 이름
+ */
+async function saveStudentData(progress, score, wrongWords, currentLevel) {
+  const user = auth.currentUser;
+  
+  // 로그인이 안 되어 있으면 저장하지 않음
+  if (!user) {
+    console.error("로그인된 사용자가 없습니다.");
+    return;
+  }
+
+  try {
+    // users 컬렉션의 학생 이메일 문서에 덮어쓰지 않고 '업데이트'합니다.
+    await setDoc(doc(db, "users", user.email), {
+      // 학습 데이터 업데이트
+      progress: progress,             // 전체 진도율
+      lastScore: score,               // 최근 시험 점수
+      wrongList: wrongWords,          // 틀린 단어 목록 (선생님 확인용)
+      currentLevel: currentLevel,     // 현재 공부 중인 단계
+      
+      // 시간 정보 (Firebase 서버 시간 사용)
+      lastActive: serverTimestamp()   
+    }, { merge: true }); // ✅ 중요: 기존의 '이름', '전화번호' 데이터는 유지하고 위 항목만 수정함
+
+    console.log("학습 데이터가 성공적으로 저장되었습니다.");
+  } catch (error) {
+    console.error("데이터 저장 중 오류 발생:", error);
+  }
+}

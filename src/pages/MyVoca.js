@@ -3,6 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { LEVEL_CONFIG } from '../config/levelConfig';
 import { useSpeech } from '../hooks/useSpeech';
 import QuizEngine from '../components/QuizEngine';
+import { db, auth } from '../firebase-config';
+import { doc, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
+import { safeGetItem, safeSetItem } from '../utils/storage';
+import { useTheme } from '../hooks/useTheme';
+import { getMistakeWords, hasAnyMistakes, migrateAttempts, removeMistakeWord } from '../utils/mistakes';
 
 const MyVoca = () => {
   const navigate = useNavigate();
@@ -12,18 +17,83 @@ const MyVoca = () => {
   const [view, setView] = useState('list');
   const [quizMode, setQuizMode] = useState('choice');
   const [quizQuestions, setQuizQuestions] = useState([]);
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [isDark, setIsDark] = useTheme();
   const [expandedGroups, setExpandedGroups] = useState({}); 
   const [selectedQuizLevelId, setSelectedQuizLevelId] = useState('all');
   const [quizResults, setQuizResults] = useState(null);
+  const [allDataLoaded, setAllDataLoaded] = useState(false);
+  const [loadedDataMap, setLoadedDataMap] = useState({});
+  const [startTime, setStartTime] = useState(null); // 🎯 시작 시간 추적 추가
   
   const themeColor = "#70011D";
 
-  // --- 다크모드 설정 ---
+  // --- 모든 레벨 데이터 로드 + Firebase levelProgress 동기화 ---
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDark);
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-  }, [isDark]);
+    const getLevelsWithMistakes = () =>
+      Object.keys(LEVEL_CONFIG).filter(levelId => {
+        const data = safeGetItem(LEVEL_CONFIG[levelId].key, {});
+        return Object.values(data).some(d => d?.attempts && hasAnyMistakes(d.attempts));
+      });
+
+    const loadAllData = async () => {
+      const preSyncLevels = new Set(getLevelsWithMistakes());
+      const dataMap = {};
+
+      const loadModule = async (levelId) => {
+        if (dataMap[levelId]) return;
+        try {
+          const module = await LEVEL_CONFIG[levelId].loadData();
+          dataMap[levelId] = module.DATA_BY_DAY;
+        } catch (e) {
+          console.error(`Failed to load data for ${levelId}`, e);
+        }
+      };
+
+      await Promise.all([
+        // Firebase sync
+        (async () => {
+          try {
+            const user = auth.currentUser;
+            if (user) {
+              const docSnap = await getDoc(doc(db, "users", user.email));
+              if (docSnap.exists()) {
+                const levelProgress = docSnap.data().levelProgress;
+                if (levelProgress) {
+                  Object.keys(levelProgress).forEach(levelKey => {
+                    const dbData = levelProgress[levelKey];
+                    if (!dbData) return;
+                    const localData = safeGetItem(levelKey, {});
+                    if ((dbData.lastUpdated || 0) >= (localData.lastUpdated || 0)) {
+                      const restored = JSON.parse(JSON.stringify(dbData));
+                      Object.keys(restored).forEach(dayKey => {
+                        if (dayKey === 'lastUpdated') return;
+                        const day = restored[dayKey];
+                        if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
+                      });
+                      safeSetItem(levelKey, JSON.stringify(restored));
+                    }
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            console.error('[MyVoca] Firebase sync 오류:', e);
+          }
+        })(),
+        // Preload modules for levels already known to have mistakes
+        Promise.all([...preSyncLevels].map(loadModule))
+      ]);
+
+      // After sync: load modules for any newly synced levels with mistakes
+      const postSyncLevels = getLevelsWithMistakes();
+      await Promise.all(postSyncLevels.filter(id => !preSyncLevels.has(id)).map(loadModule));
+
+      setLoadedDataMap(dataMap);
+      setAllDataLoaded(true);
+    };
+
+    loadAllData();
+  }, []);
 
   // --- 결과 화면 진입 시 자동으로 음소거 해제 ---
   useEffect(() => {
@@ -35,42 +105,39 @@ const MyVoca = () => {
   // --- 오답 데이터 수집 함수 ---
   const fetchMistakes = useCallback(() => {
     const uniqueMistakeWordsMap = new Map();
-    
+
     Object.keys(LEVEL_CONFIG).forEach(levelId => {
       const config = LEVEL_CONFIG[levelId];
-      const storageData = localStorage.getItem(config.key);
-      if (!storageData) return;
-
-      let savedData;
-      try {
-        savedData = JSON.parse(storageData);
-      } catch (e) {
-        return;
-      }
+      const savedData = safeGetItem(config.key, {});
+      if (Object.keys(savedData).length === 0) return;
 
       const levelMistakeWords = new Set();
       Object.values(savedData).forEach(dayData => {
-        if (dayData && dayData.attempts && Array.isArray(dayData.attempts)) {
-          dayData.attempts.flat().forEach(word => {
-            if (word && typeof word === 'string') levelMistakeWords.add(word.trim());
-          });
+        if (dayData?.attempts) {
+          getMistakeWords(dayData.attempts).forEach(word => levelMistakeWords.add(word));
         }
       });
+
+      const currentLevelData = loadedDataMap[levelId];
 
       levelMistakeWords.forEach(word => {
         if (!uniqueMistakeWordsMap.has(word)) {
           let meaning = "뜻 정보 없음";
           let emoji = "";
-          for (const day in config.data) {
-            const found = config.data[day].find(item => 
-              item?.word?.toString().toLowerCase().trim() === word.toLowerCase()
-            );
-            if (found) {
-              meaning = found.meaning;
-              emoji = found.emoji || "";
-              break;
+          
+          if (currentLevelData) {
+            for (const day in currentLevelData) {
+              const found = currentLevelData[day].find(item => 
+                item?.word?.toString().toLowerCase().trim() === word.toLowerCase()
+              );
+              if (found) {
+                meaning = found.meaning;
+                emoji = found.emoji || "";
+                break;
+              }
             }
           }
+
           uniqueMistakeWordsMap.set(word, { 
             word, meaning, emoji, levelKey: config.key, levelId 
           });
@@ -90,13 +157,15 @@ const MyVoca = () => {
         config: config 
       };
     });
-  }, []);
+  }, [loadedDataMap]);
 
-  const [mistakesGroup, setMistakesGroup] = useState(() => fetchMistakes());
+  const [mistakesGroup, setMistakesGroup] = useState([]);
 
   useEffect(() => {
-    if (view === 'list') setMistakesGroup(fetchMistakes());
-  }, [view, fetchMistakes]);
+    if (allDataLoaded || view === 'list') {
+      setMistakesGroup(fetchMistakes());
+    }
+  }, [view, fetchMistakes, allDataLoaded]);
 
   const toggleCollapse = (groupKey) => {
     setExpandedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
@@ -107,6 +176,7 @@ const MyVoca = () => {
   const startQuiz = (mode) => {
     if (totalCount === 0) return;
     setQuizMode(mode);
+    setStartTime(Date.now()); // 🎯 퀴즈 시작 시간 기록
     let pool = [];
     const filteredGroups = selectedQuizLevelId === 'all'
       ? mistakesGroup
@@ -120,20 +190,17 @@ const MyVoca = () => {
   };
 
   const handleGraduation = (word, levelKey) => {
-    const storageData = localStorage.getItem(levelKey);
-    if (!storageData) return;
-    const savedData = JSON.parse(storageData);
+    const savedData = safeGetItem(levelKey, {});
+    if (Object.keys(savedData).length === 0) return;
     let changed = false;
     Object.keys(savedData).forEach(day => {
-      if (savedData[day] && savedData[day].attempts) {
-        const prevStr = JSON.stringify(savedData[day].attempts);
-        savedData[day].attempts = savedData[day].attempts.map(arr => 
-          arr.filter(w => typeof w === 'string' && w.toLowerCase().trim() !== word.toLowerCase().trim())
-        ).filter(arr => arr.length > 0);
-        if (JSON.stringify(savedData[day].attempts) !== prevStr) changed = true;
+      if (savedData[day]?.attempts && hasAnyMistakes(savedData[day].attempts)) {
+        const prev = getMistakeWords(savedData[day].attempts).length;
+        savedData[day].attempts = removeMistakeWord(savedData[day].attempts, word);
+        if (getMistakeWords(savedData[day].attempts).length !== prev) changed = true;
       }
     });
-    if (changed) localStorage.setItem(levelKey, JSON.stringify(savedData));
+    if (changed) safeSetItem(levelKey, JSON.stringify(savedData));
   };
 
   return (
@@ -281,7 +348,72 @@ const MyVoca = () => {
             mode={quizMode}
             themeColor={themeColor}
             onCorrect={(word, lKey) => handleGraduation(word, lKey)}
-            onFinish={(results) => { setQuizResults(results); setView('result'); }}
+            onFinish={async (results) => { // 🎯 async 추가
+              // 1. QuizEngine에서 온 오답(incorrectWords)이 문자열 배열일 경우를 대비해 
+              //    전체 실수 목록(mistakesGroup)에서 객체 정보를 다시 찾아옵니다.
+              const enrichedIncorrectWords = results.incorrectWords.map(resItem => {
+                const wordText = typeof resItem === 'string' ? resItem : resItem.word;
+                
+                // 전체 그룹을 뒤져서 해당 단어의 정보를 찾음
+                let foundInfo = null;
+                for (const group of mistakesGroup) {
+                  foundInfo = group.words.find(w => w.word.toLowerCase() === wordText.toLowerCase());
+                  if (foundInfo) break;
+                }
+
+                return foundInfo || (typeof resItem === 'object' ? resItem : { word: wordText, meaning: "뜻 정보 없음", emoji: "" });
+              });
+
+              // 2. 보정된 데이터를 결과값으로 설정
+              setQuizResults({
+                ...results,
+                incorrectWords: enrichedIncorrectWords
+              }); 
+              setView('result'); 
+
+              // ----------------------------------------------------------------
+              // 🎯 3. 여기서부터 추가된 부분! Firebase에 문제풀이 기록 업로드
+              // ----------------------------------------------------------------
+              const user = auth.currentUser;
+              if (user) {
+                try {
+                  const userRef = doc(db, "users", user.email);
+                  const scoreValue = results.correctWords?.length || 0; // 맞춘 개수
+                  const totalValue = quizQuestions.length; // 총 문제 수
+                  
+                  // 🎯 학습 시간 측정: 반올림하여 더 공정하게 기록
+                  const duration = Math.max(1, Math.round((Date.now() - (startTime || (Date.now() - 60000))) / 60000));
+
+                  // DB에 저장할 레벨 키 변환 (예: araon_voca_level_1 -> level_1)
+                  const rawLevelId = selectedQuizLevelId === 'all' ? 'review' : selectedQuizLevelId;
+                  const dbLevelKey = rawLevelId.replace('araon_voca_', '').replace(/-/g, '_');
+
+                  const attendanceRecord = {
+                    date: new Date().toISOString(),
+                    type: "오답노트 문제풀이", 
+                    score: scoreValue,
+                    total: totalValue,
+                    levelId: dbLevelKey,
+                    method: quizMode,
+                    studyTime: duration
+                  };
+
+                  await updateDoc(userRef, {
+                    // [대시보드 리포트용] 출석 배열에 추가
+                    attendance: arrayUnion(attendanceRecord),
+                    
+                    // [랭킹용] 점수와 시간 누적 합산
+                    [`stats.levels.${dbLevelKey}.weeklyWords`]: increment(scoreValue),
+                    "stats.weeklyWords": increment(scoreValue),
+                    "stats.weeklyStudyTime": increment(duration)
+                  });
+                  
+                  console.log(`🔥 오답노트 문제풀이 기록 성공! (${duration}분)`);
+                } catch (error) {
+                  console.error("기록 저장 중 오류 발생:", error);
+                }
+              }
+            }}
           />
         )}
 

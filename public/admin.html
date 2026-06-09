@@ -1,0 +1,42 @@
+import { db } from './firebase-config.js';
+import { collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+/**
+ * 이름으로 학생을 검색하고 정보를 반환합니다.
+ * @param {string} targetName - 찾으려는 학생 이름
+ * @returns {Array} 검색된 학생 객체 배열
+ */
+async function searchStudent(targetName) {
+  try {
+    // 1. 'users' 컬렉션에서 이름이 일치하는 문서들을 찾습니다.
+    const q = query(collection(db, "users"), where("name", "==", targetName));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      alert("해당 이름의 학생을 찾을 수 없습니다.");
+      return [];
+    }
+
+    const students = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      students.push({
+        id: doc.id,               // Firebase 고유 ID (이메일)
+        name: data.name,           // 이름
+        phone: data.phone || '번호 없음', // ✅ 동명이인 구분용 전화번호
+        progress: data.progress || 0,     // 전체 진도
+        currentLevel: data.currentLevel || '미설정', // 현재 단계
+        wrongList: data.wrongList || [],   // 최근 오답 리스트
+        lastActive: data.lastActive?.toDate().toLocaleString() || '기록 없음' // 마지막 학습 시간
+      });
+    });
+
+    // 2. 검색 결과를 반환합니다 (화면에 표로 그릴 때 사용)
+    return students;
+
+  } catch (error) {
+    console.error("학생 검색 중 오류 발생:", error);
+    alert("검색 중 오류가 발생했습니다.");
+    return [];
+  }
+}
