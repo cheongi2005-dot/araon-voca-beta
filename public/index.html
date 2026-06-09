@@ -25,8 +25,11 @@
         <script>
             (function() {
                 try {
-                    if (localStorage.getItem('theme') === 'dark') {
+                    var isDark = localStorage.getItem('theme') === 'dark';
+                    if (isDark) {
                         document.documentElement.classList.add('dark');
+                        document.documentElement.style.backgroundColor = '#1E1E1E';
+                        document.querySelector('meta[name="theme-color"]').setAttribute('content', '#1E1E1E');
                     }
                 } catch(e) {}
             })();
