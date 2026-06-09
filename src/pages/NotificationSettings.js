@@ -107,10 +107,12 @@ const NotificationSettings = () => {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased relative overflow-hidden text-zinc-900 dark:text-white pb-10">
-      <header className="sticky top-0 z-30 flex items-center px-4 justify-between w-full h-16 bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800">
-        <button onClick={() => navigate(-1)} className="p-2 dark:text-white active:opacity-70"><i className="ph-bold ph-caret-left text-2xl"></i></button>
-        <h1 className="text-sm font-black tracking-[0.2em] uppercase">Settings</h1>
-        <button onClick={() => setIsDark(!isDark)} className="p-2 dark:text-white"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
+      <header className="sticky top-0 z-30 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
+        <div className="flex items-center px-4 justify-between w-full h-16 flex-1">
+          <button onClick={() => navigate(-1)} className="p-2 dark:text-white active:opacity-70"><i className="ph-bold ph-caret-left text-2xl"></i></button>
+          <h1 className="text-sm font-black tracking-[0.2em] uppercase">Settings</h1>
+          <button onClick={() => setIsDark(!isDark)} className="p-2 dark:text-white"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
+        </div>
       </header>
 
       <main className="flex-1 p-6">

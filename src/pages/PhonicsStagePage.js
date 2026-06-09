@@ -12,7 +12,7 @@ const PhonicsStagePage = () => {
   }, [isDark]);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans pb-10" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans pb-10">
       <div className="max-w-md mx-auto">
         {/* 헤더: Home.js와 동일한 스타일 적용 */}
         <header className="sticky top-0 z-20 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>

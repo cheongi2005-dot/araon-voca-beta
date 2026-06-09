@@ -105,8 +105,8 @@ const StudentInquiry = () => {
     <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0B] flex flex-col max-w-md mx-auto font-sans antialiased transition-colors duration-500">
       
       {/* 헤더 */}
-      <header className="sticky top-0 z-20 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800 h-16 justify-center px-4">
-        <div className="flex items-center justify-between w-full">
+      <header className="sticky top-0 z-20 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
+        <div className="flex items-center justify-between w-full flex-1 h-16 px-4">
           <button onClick={() => navigate('/settings')} className="p-2 text-slate-800 dark:text-white active:scale-90 transition-transform">
             <i className="ph-bold ph-caret-left text-2xl"></i>
           </button>

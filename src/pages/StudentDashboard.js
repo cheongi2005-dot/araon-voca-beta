@@ -307,7 +307,7 @@ const StudentDashboardMobile = () => {
 
   // --- RENDER ---
   return (
-    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0B] p-4 font-sans antialiased transition-colors duration-500 pb-12">
+    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0B] p-4 font-sans antialiased transition-colors duration-500 pb-12" style={{ paddingTop: 'calc(16px + env(safe-area-inset-top))' }}>
       <div className="max-w-md mx-auto">
         
           <header className="flex justify-between items-center mb-8 pt-2 px-1">

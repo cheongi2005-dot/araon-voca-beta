@@ -252,7 +252,7 @@ const RankingPage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0F0F10] transition-colors duration-500 font-sans antialiased pb-10" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0F0F10] transition-colors duration-500 font-sans antialiased pb-10">
       <style>{`
         @keyframes metallic-shine {
           0% { background-position: -200% center; }
