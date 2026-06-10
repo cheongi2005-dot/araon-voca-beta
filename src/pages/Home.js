@@ -8,7 +8,7 @@ import LoadingScreen from '../components/LoadingScreen';
 import { safeGetItem, safeSetItem } from '../utils/storage';
 import { useTheme } from '../hooks/useTheme';
 import { getWeekBounds } from '../utils/dateUtils';
-import { getMistakeWords, migrateAttempts, MISTAKES_CACHE_KEY } from '../utils/mistakes';
+import { getMistakeWords, migrateAttempts, MISTAKES_CACHE_KEY, refreshMistakesCache } from '../utils/mistakes';
 
 const STORAGE_KEYS = Object.values(LEVEL_CONFIG).map(config => config.key);
 
@@ -52,10 +52,10 @@ function Home() {
     document.body.style.backgroundColor = isDark ? '#0A0A0B' : '#F8F9FA';
   }, [isDark]);
 
-  // 🎯 무거운 로컬스토리지 동기화 작업을 분리 (비동기 처리)
   const syncLevelProgressToLocal = (levelProgress) => {
     if (!levelProgress) return;
     setTimeout(() => {
+      let changed = false;
       Object.keys(levelProgress).forEach(levelKey => {
         const dbLevelData = levelProgress[levelKey];
         const localLevelData = safeGetItem(levelKey, { lastUpdated: 0 });
@@ -68,8 +68,13 @@ function Home() {
             if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
           });
           safeSetItem(levelKey, JSON.stringify(restored));
+          changed = true;
         }
       });
+      if (changed) {
+        refreshMistakesCache();
+        setTotalMistakes(Number(localStorage.getItem(MISTAKES_CACHE_KEY) || '0'));
+      }
     }, 100);
   };
 
