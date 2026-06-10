@@ -88,6 +88,7 @@ const MyVoca = () => {
       const postSyncLevels = getLevelsWithMistakes();
       await Promise.all(postSyncLevels.filter(id => !preSyncLevels.has(id)).map(loadModule));
 
+      refreshMistakesCache();
       setLoadedDataMap(dataMap);
       setAllDataLoaded(true);
     };

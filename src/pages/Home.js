@@ -55,7 +55,6 @@ function Home() {
   const syncLevelProgressToLocal = (levelProgress) => {
     if (!levelProgress) return;
     setTimeout(() => {
-      let changed = false;
       Object.keys(levelProgress).forEach(levelKey => {
         const dbLevelData = levelProgress[levelKey];
         const localLevelData = safeGetItem(levelKey, { lastUpdated: 0 });
@@ -68,13 +67,10 @@ function Home() {
             if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
           });
           safeSetItem(levelKey, JSON.stringify(restored));
-          changed = true;
         }
       });
-      if (changed) {
-        refreshMistakesCache();
-        setTotalMistakes(Number(localStorage.getItem(MISTAKES_CACHE_KEY) || '0'));
-      }
+      refreshMistakesCache();
+      setTotalMistakes(Number(localStorage.getItem(MISTAKES_CACHE_KEY) || '0'));
     }, 100);
   };
 
