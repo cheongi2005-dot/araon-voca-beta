@@ -2,16 +2,65 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { app } from '../firebase-config';
 import { safeGetItem } from '../utils/storage';
 
-// 🎯 일레븐랩스 오디오 캐시 (세션 동안 유지, 최대 100개)
+// 세션 캐시 (ObjectURL, 탭 닫으면 사라짐)
 const audioCache = new Map();
 const AUDIO_CACHE_MAX = 100;
 
+// 중복 요청 방지 (같은 단어 동시 요청 시 하나만 실행)
+const inFlightCache = new Map();
+
+// ── IndexedDB 영구 캐시 ──────────────────────────────────────
+const DB_NAME = 'araon_tts_cache';
+const STORE_NAME = 'audio';
+let dbPromise = null;
+
+const openDB = () => {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = (e) => e.target.result.createObjectStore(STORE_NAME);
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = () => { dbPromise = null; reject(req.error); };
+  });
+  return dbPromise;
+};
+
+const idbGet = async (key) => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const req = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(key);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => resolve(null);
+    });
+  } catch { return null; }
+};
+
+const idbSet = async (key, value) => {
+  try {
+    const db = await openDB();
+    await new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).put(value, key);
+      tx.oncomplete = resolve;
+      tx.onerror = resolve;
+    });
+  } catch {}
+};
+
+const base64ToObjectURL = (base64) => {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
+};
+// ────────────────────────────────────────────────────────────
+
 export const useSpeech = () => {
-  const [muted, setMuted] = useState(() => safeGetItem('araon_voca_speech_muted', false));
+  const [muted, setMuted] = useState(false);
   const [voices, setVoices] = useState([]);
   const ttsFnRef = useRef(null);
-  
-  // 🔊 음성 설정 (속도, 음량 등)을 기억하고 불러오는 로직
+
   const [voiceConfig, setVoiceConfig] = useState(() => {
     const saved = localStorage.getItem('araon_voca_voice_config');
     return saved ? JSON.parse(saved) : { rate: 0.9, volume: 1.0 };
@@ -26,28 +75,75 @@ export const useSpeech = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('araon_voca_speech_muted', JSON.stringify(muted));
-  }, [muted]);
-
-  // 설정이 바뀔 때마다 저장
-  useEffect(() => {
     localStorage.setItem('araon_voca_voice_config', JSON.stringify(voiceConfig));
   }, [voiceConfig]);
 
-  // 🎯 크롬 최적화: 가장 좋은 목소리 찾기 알고리즘
   const findBestChromeVoice = (availableVoices) => {
-    const chromePriority = [
-      "Google US English", // 크롬의 가장 자연스러운 목소리
-      "English United States",
-      "en-US"
-    ];
-
-    for (const keyword of chromePriority) {
+    for (const keyword of ["Google US English", "English United States", "en-US"]) {
       const voice = availableVoices.find(v => v.name.includes(keyword));
       if (voice) return voice;
     }
     return availableVoices.find(v => v.lang.startsWith('en')) || null;
   };
+
+  const playBrowserTTS = useCallback((text, savedVoiceName) => {
+    const msg = new SpeechSynthesisUtterance(text);
+    const availableVoices = window.speechSynthesis.getVoices();
+    const targetVoice =
+      availableVoices.find(v => v.name === savedVoiceName) ||
+      findBestChromeVoice(availableVoices);
+    if (targetVoice) msg.voice = targetVoice;
+    msg.lang = 'en-US';
+    msg.rate = voiceConfig.rate;
+    msg.volume = voiceConfig.volume;
+    window.speechSynthesis.speak(msg);
+  }, [voiceConfig]);
+
+  const ensureTtsFn = useCallback(async () => {
+    if (!ttsFnRef.current) {
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const functions = getFunctions(app, 'asia-northeast3');
+      ttsFnRef.current = httpsCallable(functions, 'tts', { timeout: 30000 });
+    }
+    return ttsFnRef.current;
+  }, []);
+
+  // 단어 하나를 캐시에 저장 (세션 + IndexedDB)
+  const fetchAndCacheAI = useCallback(async (text) => {
+    if (audioCache.has(text)) return audioCache.get(text);
+    if (inFlightCache.has(text)) return inFlightCache.get(text);
+
+    const promise = (async () => {
+      // IndexedDB 먼저 확인 (네트워크 불필요)
+      const cached = await idbGet(text);
+      if (cached) {
+        const url = base64ToObjectURL(cached);
+        audioCache.set(text, url);
+        inFlightCache.delete(text);
+        return url;
+      }
+
+      // ElevenLabs Cloud Function 호출
+      const ttsFn = await ensureTtsFn();
+      const result = await ttsFn({ text });
+      const base64Audio = result.data.audio;
+
+      await idbSet(text, base64Audio);
+
+      const url = base64ToObjectURL(base64Audio);
+      if (audioCache.size >= AUDIO_CACHE_MAX) {
+        const firstKey = audioCache.keys().next().value;
+        URL.revokeObjectURL(audioCache.get(firstKey));
+        audioCache.delete(firstKey);
+      }
+      audioCache.set(text, url);
+      inFlightCache.delete(text);
+      return url;
+    })();
+
+    inFlightCache.set(text, promise);
+    return promise;
+  }, [ensureTtsFn]);
 
   const speak = useCallback(async (text) => {
     if (muted) return;
@@ -56,70 +152,51 @@ export const useSpeech = () => {
     const useAI = safeGetItem('araon_voca_use_ai', true);
     const savedVoiceName = localStorage.getItem('araon_voca_voice_name');
 
-    try {
-      // 1순위: Cloud Function을 통한 ElevenLabs TTS (API 키 서버 보관)
-      if (useAI) {
-        // 캐시 확인: 이미 생성된 오디오가 있다면 즉시 재생
-        if (audioCache.has(text)) {
-          const cachedAudio = new Audio(audioCache.get(text));
-          cachedAudio.volume = voiceConfig.volume;
-          cachedAudio.playbackRate = voiceConfig.rate;
-          await cachedAudio.play();
-          return;
-        }
+    if (useAI) {
+      // 1순위: 세션 캐시 (즉시 재생)
+      if (audioCache.has(text)) {
+        const audio = new Audio(audioCache.get(text));
+        audio.volume = voiceConfig.volume;
+        audio.playbackRate = voiceConfig.rate;
+        await audio.play();
+        return;
+      }
 
-        // Cloud Function SDK 지연 로딩 (초기 번들 크기 최소화)
-        if (!ttsFnRef.current) {
-          const { getFunctions, httpsCallable } = await import('firebase/functions');
-          const functions = getFunctions(app, 'asia-northeast3');
-          ttsFnRef.current = httpsCallable(functions, 'tts', { timeout: 30000 });
-        }
-
-        const result = await ttsFnRef.current({ text });
-        const base64Audio = result.data.audio;
-
-        // base64 → Blob → ObjectURL
-        const binary = atob(base64Audio);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        const blob = new Blob([bytes], { type: 'audio/mpeg' });
-        const url = URL.createObjectURL(blob);
-
-        // 캐시에 저장 (최대 크기 초과 시 가장 오래된 항목 삭제)
-        if (audioCache.size >= AUDIO_CACHE_MAX) {
-          const firstKey = audioCache.keys().next().value;
-          URL.revokeObjectURL(audioCache.get(firstKey));
-          audioCache.delete(firstKey);
-        }
+      // 2순위: IndexedDB 캐시 (로컬 읽기, ~수십ms)
+      const cached = await idbGet(text);
+      if (cached) {
+        const url = base64ToObjectURL(cached);
         audioCache.set(text, url);
-
         const audio = new Audio(url);
         audio.volume = voiceConfig.volume;
         audio.playbackRate = voiceConfig.rate;
         await audio.play();
         return;
       }
-      throw new Error("Use Browser Voice");
 
-    } catch (error) {
-      // 2순위: 브라우저(크롬) 엔진 폴백
-      console.warn("브라우저 엔진 사용:", error.message);
-      
-      const msg = new SpeechSynthesisUtterance(text);
-      const availableVoices = window.speechSynthesis.getVoices();
-
-      // 🎯 매칭 우선순위: 사용자 선택 이름 -> 크롬 최적화 보이스 -> 기본 영어
-      const targetVoice = 
-        availableVoices.find(v => v.name === savedVoiceName) || 
-        findBestChromeVoice(availableVoices);
-
-      if (targetVoice) msg.voice = targetVoice;
-      msg.lang = 'en-US';
-      msg.rate = voiceConfig.rate; 
-      msg.volume = voiceConfig.volume;
-      window.speechSynthesis.speak(msg);
+      // 3순위: 캐시 없음 → 브라우저 TTS 즉시 재생 + 백그라운드 AI 캐시
+      playBrowserTTS(text, savedVoiceName);
+      fetchAndCacheAI(text).catch(() => {});
+      return;
     }
-  }, [muted, voiceConfig]);
 
-  return { speak, voices, muted, setMuted, voiceConfig, setVoiceConfig };
+    playBrowserTTS(text, savedVoiceName);
+  }, [muted, voiceConfig, playBrowserTTS, fetchAndCacheAI]);
+
+  // Day 선택 시 해당 day 단어 전체를 백그라운드에서 미리 캐시
+  const prefetchWords = useCallback(async (words) => {
+    const useAI = safeGetItem('araon_voca_use_ai', true);
+    if (!useAI) return;
+
+    const toFetch = words.filter(w => !audioCache.has(w) && !inFlightCache.has(w));
+    const CONCURRENCY = 3;
+
+    for (let i = 0; i < toFetch.length; i += CONCURRENCY) {
+      await Promise.allSettled(
+        toFetch.slice(i, i + CONCURRENCY).map(w => fetchAndCacheAI(w))
+      );
+    }
+  }, [fetchAndCacheAI]);
+
+  return { speak, voices, muted, setMuted, voiceConfig, setVoiceConfig, prefetchWords };
 };

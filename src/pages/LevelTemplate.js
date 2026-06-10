@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase-config';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -16,7 +16,7 @@ const LevelTemplate = () => {
   const { levelId: rawLevelId } = useParams();
   const levelId = useMemo(() => rawLevelId?.toLowerCase() || '', [rawLevelId]);
   const navigate = useNavigate();
-  const { speak } = useSpeech();
+  const { speak, prefetchWords } = useSpeech();
 
   const config = useMemo(() => LEVEL_CONFIG[levelId] || null, [levelId]);
   const [loadedData, setLoadedData] = useState({ data: null, titles: null });
@@ -37,6 +37,15 @@ const LevelTemplate = () => {
 
   const { addMistake, saveProgress } = useStorage(config?.key || 'default');
 
+  const selectDay = useCallback((day) => {
+    setSelectedDay(day);
+    setView('dayHome');
+    setStartTime(Date.now());
+    const words = (loadedData.data?.[day] || []).map(item => item.word);
+    if (words.length > 0) prefetchWords(words);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedData.data, prefetchWords]);
+
   useEffect(() => {
     let unsubscribeSnapshot;
 
@@ -54,45 +63,47 @@ const LevelTemplate = () => {
               });
             }
 
-            setIsSyncLoading(false);
+            setIsSyncLoading(false); // 로딩 화면 즉시 해제
 
             if (config?.key) {
-              const dbLevelData = userData.levelProgress?.[config.key] || {};
-              const localLevelData = safeGetItem(config.key, {});
+              setTimeout(() => { // 데이터 병합은 화면 렌더 후에 처리
+                const dbLevelData = userData.levelProgress?.[config.key] || {};
+                const localLevelData = safeGetItem(config.key, {});
 
-              const dbTime = dbLevelData.lastUpdated || 0;
-              const localTime = localLevelData.lastUpdated || 0;
-              const rawData = Object.keys(dbLevelData).length > 0
-                ? (dbTime >= localTime ? dbLevelData : localLevelData)
-                : localLevelData;
+                const dbTime = dbLevelData.lastUpdated || 0;
+                const localTime = localLevelData.lastUpdated || 0;
+                const rawData = Object.keys(dbLevelData).length > 0
+                  ? (dbTime >= localTime ? dbLevelData : localLevelData)
+                  : localLevelData;
 
-              const finalData = JSON.parse(JSON.stringify(rawData));
-              Object.keys(finalData).forEach(dayKey => {
-                if (dayKey === 'lastUpdated') return;
-                const day = finalData[dayKey];
-                if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
-              });
-
-              const hasCompletedDays = Object.keys(finalData).some(k => k !== 'lastUpdated' && finalData[k]?.completed);
-              if (!hasCompletedDays && Array.isArray(userData.attendance)) {
-                userData.attendance.forEach(record => {
-                  if (typeof record === 'string' || !record.day) return;
-                  if (!String(record.type || '').includes('문제풀이')) return;
-                  if (String(record.levelId || '').toLowerCase() !== levelId.toLowerCase()) return;
-                  const day = String(record.day);
-                  if (!finalData[day]) finalData[day] = {};
-                  finalData[day].completed = true;
-                  const s = Number(record.score || 0);
-                  finalData[day].bestScore = Math.max(finalData[day].bestScore || 0, s);
-                  if (record.method) {
-                    if (!finalData[day].scores) finalData[day].scores = {};
-                    finalData[day].scores[record.method] = Math.max(finalData[day].scores[record.method] || 0, s);
-                  }
+                const finalData = JSON.parse(JSON.stringify(rawData));
+                Object.keys(finalData).forEach(dayKey => {
+                  if (dayKey === 'lastUpdated') return;
+                  const day = finalData[dayKey];
+                  if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
                 });
-              }
 
-              safeSetItem(config.key, JSON.stringify(finalData));
-              setDayHistory(finalData);
+                const hasCompletedDays = Object.keys(finalData).some(k => k !== 'lastUpdated' && finalData[k]?.completed);
+                if (!hasCompletedDays && Array.isArray(userData.attendance)) {
+                  userData.attendance.forEach(record => {
+                    if (typeof record === 'string' || !record.day) return;
+                    if (!String(record.type || '').includes('문제풀이')) return;
+                    if (String(record.levelId || '').toLowerCase() !== levelId.toLowerCase()) return;
+                    const day = String(record.day);
+                    if (!finalData[day]) finalData[day] = {};
+                    finalData[day].completed = true;
+                    const s = Number(record.score || 0);
+                    finalData[day].bestScore = Math.max(finalData[day].bestScore || 0, s);
+                    if (record.method) {
+                      if (!finalData[day].scores) finalData[day].scores = {};
+                      finalData[day].scores[record.method] = Math.max(finalData[day].scores[record.method] || 0, s);
+                    }
+                  });
+                }
+
+                safeSetItem(config.key, JSON.stringify(finalData));
+                setDayHistory(finalData);
+              }, 0);
             }
           } else {
             setIsSyncLoading(false);
@@ -260,7 +271,7 @@ const LevelTemplate = () => {
               {(() => {
                 const isCompleted = dayHistory[String(topDay)]?.completed || dayHistory[Number(topDay)]?.completed;
                 return (
-                  <button onClick={() => { setSelectedDay(topDay); setView('dayHome'); setStartTime(Date.now()); }} className="w-full p-6 border-2 rounded-[1.8rem] flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-sm active:scale-[0.98] transition-all relative overflow-hidden" style={{ borderColor: isCompleted ? `${config.color}40` : '#e2e8f0' }}>
+                  <button onClick={() => selectDay(topDay)} className="w-full p-6 border-2 rounded-[1.8rem] flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-sm active:scale-[0.98] transition-all relative overflow-hidden" style={{ borderColor: isCompleted ? `${config.color}40` : '#e2e8f0' }}>
                     <div className="flex items-center text-left relative z-10">
                       <div className="w-14 h-14 rounded-2xl flex items-center justify-center mr-5 text-white font-black text-xl shadow-inner" style={{ backgroundColor: isCompleted ? config.color : '#cbd5e1' }}>D{topDay}</div>
                       <div><h3 className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: isCompleted ? config.color : '#94a3b8' }}>{isCompleted ? "Completed" : "Up Next"}</h3><p className="text-lg font-bold tracking-tight dark:text-white">{loadedData.titles[topDay]}</p></div>
@@ -285,7 +296,7 @@ const LevelTemplate = () => {
                     key={d} 
                     onClick={() => { 
                       if (isLocked) { alert('🔒 이전 Day를 먼저 완료해야 다음 단계로 넘어갈 수 있어요!'); return; }
-                      setSelectedDay(d); setView('dayHome'); setStartTime(Date.now()); 
+                      selectDay(d);
                     }} 
                     className={`w-full p-6 border rounded-2xl flex items-center justify-between shadow-sm transition-all duration-300
                       ${isLocked 
@@ -404,7 +415,7 @@ const LevelTemplate = () => {
                   </div>
                   <div className="w-full space-y-3">
                     {perf >= 0.8 ? (
-                      nextDay ? <button onClick={() => { setSelectedDay(nextDay); setView('dayHome'); setStartTime(Date.now()); }} className="w-full p-6 text-white rounded-[2rem] font-black text-xl shadow-lg" style={{ backgroundColor: config.color }}>다음 Day 도전하기 🚀</button> : <button onClick={() => setView('home')} className="w-full p-6 text-white rounded-[2rem] font-black text-xl shadow-lg" style={{ backgroundColor: config.color }}>레벨 마스터! 목록으로</button>
+                      nextDay ? <button onClick={() => selectDay(nextDay)} className="w-full p-6 text-white rounded-[2rem] font-black text-xl shadow-lg" style={{ backgroundColor: config.color }}>다음 Day 도전하기 🚀</button> : <button onClick={() => setView('home')} className="w-full p-6 text-white rounded-[2rem] font-black text-xl shadow-lg" style={{ backgroundColor: config.color }}>레벨 마스터! 목록으로</button>
                     ) : <button onClick={() => navigate('/my-voca')} className="w-full p-6 text-white rounded-[2rem] font-black text-xl shadow-lg" style={{ backgroundColor: '#70011D' }}>나의 단어장에서 복습하기 ✍️</button>}
                     <button onClick={() => setView('home')} className="w-full py-4 text-zinc-400 font-bold text-sm">전체 목록으로 가기</button>
                   </div>

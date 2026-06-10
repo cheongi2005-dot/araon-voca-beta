@@ -82,7 +82,7 @@ export const useQuiz = (questions, onFinish, onMistake, onCorrect) => {
       onMistake?.(sanitizedQuestion);
     }
 
-    const delay = isCorrect ? 800 : 2000;
+    const delay = isCorrect ? 300 : 1000;
 
     timerRef.current = setTimeout(() => {
       if (!isMounted.current) return;

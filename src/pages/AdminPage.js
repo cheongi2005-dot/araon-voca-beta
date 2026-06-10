@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase-config';
-import { collection, query, getDocs, orderBy, deleteDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db, functions } from '../firebase-config';
+import { collection, query, getDocs, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
+import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
 import { LEVEL_CONFIG } from '../config/levelConfig';
 import StudentReport from '../components/StudentReport'; 
@@ -54,13 +55,35 @@ const AdminPage = () => {
     const replyText = replyInputs[inquiryId];
     if (!replyText?.trim()) return alert("답변 내용을 입력해주세요.");
     try {
-      await updateDoc(doc(db, "inquiries", inquiryId), {
-        adminReply: replyText,
-        repliedAt: serverTimestamp()
-      });
+      const adminSendReply = httpsCallable(functions, 'adminSendReply');
+      await adminSendReply({ inquiryId, replyText });
       alert("답변이 전송되었습니다.");
       fetchAllData();
-    } catch (error) { alert("전송 실패"); }
+    } catch (error) {
+      console.error("답변 전송 오류:", error);
+      alert("전송 실패: " + (error.message || "알 수 없는 오류"));
+    }
+  };
+
+  const handleLevelChange = async (newLevelTitle) => {
+    if (!selectedStudent) return;
+    await updateDoc(doc(db, "users", selectedStudent.id), { currentLevel: newLevelTitle });
+    setSelectedStudent(prev => ({ ...prev, currentLevel: newLevelTitle }));
+    setStudents(prev => prev.map(s => s.id === selectedStudent.id ? { ...s, currentLevel: newLevelTitle } : s));
+  };
+
+  const handleDeleteStudent = async (student) => {
+    if (!window.confirm(`"${student.name || student.id}" 학생의 계정을 완전히 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) return;
+    try {
+      const adminDeleteStudent = httpsCallable(functions, 'adminDeleteStudent');
+      await adminDeleteStudent({ studentId: student.id });
+      setStudents(prev => prev.filter(s => s.id !== student.id));
+      setSelectedStudent(null);
+      alert("계정이 삭제되었습니다.");
+    } catch (error) {
+      console.error("학생 삭제 오류:", error);
+      alert("삭제 실패: " + (error.message || "알 수 없는 오류"));
+    }
   };
 
   const handleDeleteInquiry = async (inquiryId) => {
@@ -130,7 +153,17 @@ const AdminPage = () => {
     <div style={containerStyle} className="admin-safe-zone p-6 font-sans antialiased">
       <div className="max-w-4xl mx-auto">
       {selectedStudent ? (
-        <StudentReport student={selectedStudent} onBack={() => setSelectedStudent(null)} backText="목록으로 돌아가기" isLogoutMode={false} />
+        <div>
+          <StudentReport student={selectedStudent} onBack={() => setSelectedStudent(null)} backText="목록으로 돌아가기" isLogoutMode={false} onLevelChange={handleLevelChange} />
+          <div className="fixed bottom-6 right-6 z-50">
+            <button
+              onClick={() => handleDeleteStudent(selectedStudent)}
+              className="flex items-center gap-2 px-5 py-3 bg-rose-500 text-white rounded-2xl font-black text-sm shadow-lg active:scale-95 transition-all hover:bg-rose-600"
+            >
+              <i className="ph-bold ph-trash text-base"></i> 계정 삭제
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="animate__animated animate__fadeIn">
           <header className="flex justify-between items-start mb-10">
@@ -161,6 +194,7 @@ const AdminPage = () => {
                       <div>
                         <h3 className="font-black text-gray-800 text-lg leading-tight">{student.name || "미입력"}</h3>
                         <p className="text-[11px] text-gray-400 font-bold mt-1">{formatPhoneNumber(student.phone)}</p>
+                        <p className="text-[11px] text-gray-400 font-bold">{student.id}</p>
                       </div>
                     </div>
                     <div className="text-right">

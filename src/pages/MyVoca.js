@@ -7,7 +7,7 @@ import { db, auth } from '../firebase-config';
 import { doc, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import { safeGetItem, safeSetItem } from '../utils/storage';
 import { useTheme } from '../hooks/useTheme';
-import { getMistakeWords, hasAnyMistakes, migrateAttempts, removeMistakeWord } from '../utils/mistakes';
+import { getMistakeWords, hasAnyMistakes, migrateAttempts, removeMistakeWord, refreshMistakesCache } from '../utils/mistakes';
 
 const MyVoca = () => {
   const navigate = useNavigate();
@@ -200,7 +200,10 @@ const MyVoca = () => {
         if (getMistakeWords(savedData[day].attempts).length !== prev) changed = true;
       }
     });
-    if (changed) safeSetItem(levelKey, JSON.stringify(savedData));
+    if (changed) {
+      safeSetItem(levelKey, JSON.stringify(savedData));
+      refreshMistakesCache();
+    }
   };
 
   return (

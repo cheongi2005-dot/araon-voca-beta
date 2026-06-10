@@ -21,6 +21,55 @@ const getCurrentKSTTime = () => {
 };
 
 /**
+ * 🗑️ 0-b. 관리자 학생 계정 완전 삭제 (Auth + Firestore)
+ */
+exports.adminDeleteStudent = onCall({
+  region: "asia-northeast3",
+}, async (request) => {
+  const { studentId } = request.data;
+
+  if (!studentId) {
+    throw new HttpsError("invalid-argument", "학생 ID가 없습니다.");
+  }
+
+  try {
+    const user = await admin.auth().getUserByEmail(studentId);
+    await admin.auth().deleteUser(user.uid);
+  } catch (error) {
+    // Auth 계정이 없는 경우 무시하고 Firestore만 삭제
+    console.warn("[adminDeleteStudent] Auth 삭제 건너뜀:", error.message);
+  }
+
+  await admin.firestore().collection("users").doc(studentId).delete();
+
+  return { success: true };
+});
+
+/**
+ * 💬 0-a. 관리자 문의 답변 전송 (Firestore 보안 규칙 우회용 Admin SDK)
+ */
+exports.adminSendReply = onCall({
+  region: "asia-northeast3",
+}, async (request) => {
+  const { inquiryId, replyText } = request.data;
+
+  if (!inquiryId || !replyText?.trim()) {
+    throw new HttpsError("invalid-argument", "필수 정보가 없습니다.");
+  }
+
+  try {
+    await admin.firestore().collection("inquiries").doc(inquiryId).update({
+      adminReply: replyText.trim(),
+      repliedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("답변 저장 오류:", error);
+    throw new HttpsError("internal", "답변 저장에 실패했습니다.");
+  }
+});
+
+/**
  * 🔊 0. ElevenLabs TTS 프록시 (API 키를 서버에서만 사용)
  * 클라이언트는 이 함수를 호출하며, 실제 ElevenLabs 키는 절대 노출되지 않음
  */

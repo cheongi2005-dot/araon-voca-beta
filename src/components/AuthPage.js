@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from '../firebase-config';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { safeGetItem } from '../utils/storage';
+
+const maskEmail = (email) => {
+  const [local, domain] = email.split('@');
+  if (local.length <= 3) return `${local[0]}***@${domain}`;
+  return `${local.slice(0, 2)}${'*'.repeat(local.length - 3)}${local.slice(-1)}@${domain}`;
+};
 
 const underlineInput = "w-full py-2.5 bg-transparent border-b border-zinc-300 dark:border-zinc-700 outline-none text-base dark:text-white placeholder-zinc-300 dark:placeholder-zinc-600 focus:border-[#70011D] transition-colors duration-200";
 const label = "block text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2";
@@ -19,6 +25,10 @@ function AuthPage() {
   const [privacyAgreed, setPrivacyAgreed] = useState(params.get('agreed') === 'true');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showFindEmail, setShowFindEmail] = useState(false);
+  const [findName, setFindName] = useState('');
+  const [findPhone, setFindPhone] = useState('');
+  const [foundEmail, setFoundEmail] = useState('');
 
   useEffect(() => {
     const saved = safeGetItem('araon_temp_signup', {});
@@ -70,6 +80,25 @@ function AuthPage() {
     } catch (err) {
       setError('이메일 발송에 실패했습니다. 이메일 주소를 확인해주세요.');
     }
+  };
+
+  const handleFindEmail = async () => {
+    if (!findName || !findPhone) { setError('이름과 전화번호를 모두 입력해주세요.'); return; }
+    setLoading(true);
+    setError('');
+    setFoundEmail('');
+    try {
+      const q = query(collection(db, 'users'), where('name', '==', findName), where('phone', '==', findPhone));
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        setError('일치하는 계정을 찾을 수 없습니다.');
+      } else {
+        setFoundEmail(maskEmail(snapshot.docs[0].data().email));
+      }
+    } catch {
+      setError('조회 중 오류가 발생했습니다.');
+    }
+    setLoading(false);
   };
 
   const handleKeyDown = (e) => { if (e.key === 'Enter') handleSubmit(); };
@@ -166,9 +195,14 @@ function AuthPage() {
         {/* 하단 링크 */}
         <div className="flex items-center justify-center gap-6 mt-5">
           {isLoginMode && (
-            <button onClick={handleForgotPassword} className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors">
-              Forgot Password?
-            </button>
+            <>
+              <button onClick={handleForgotPassword} className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors">
+                Forgot Password?
+              </button>
+              <button onClick={() => { setShowFindEmail(true); setError(''); setFoundEmail(''); }} className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors">
+                Forgot Email?
+              </button>
+            </>
           )}
           <button
             onClick={() => { setIsLoginMode(!isLoginMode); setError(''); }}
@@ -177,6 +211,42 @@ function AuthPage() {
             {isLoginMode ? '회원가입' : '로그인으로 돌아가기'}
           </button>
         </div>
+
+        {/* 이메일 찾기 모달 */}
+        {showFindEmail && (
+          <div className="fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center p-8">
+            <div className="bg-white dark:bg-[#141416] rounded-2xl p-8 w-full max-w-sm shadow-2xl">
+              <h2 className="text-lg font-black text-zinc-900 dark:text-white mb-6">이메일 찾기</h2>
+              <div className="space-y-6">
+                <div>
+                  <label className={label}>Name</label>
+                  <input value={findName} onChange={e => setFindName(e.target.value)} placeholder="홍길동" className={underlineInput} />
+                </div>
+                <div>
+                  <label className={label}>Phone</label>
+                  <input type="tel" value={findPhone} onChange={e => setFindPhone(e.target.value)} placeholder="010-0000-0000" className={underlineInput} />
+                </div>
+              </div>
+              {error && <p className="mt-4 text-xs text-[#70011D] font-bold text-center">{error}</p>}
+              {foundEmail && (
+                <div className="mt-5 p-3 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-center">
+                  <p className="text-[10px] text-zinc-400 mb-1 uppercase tracking-widest">등록된 이메일</p>
+                  <p className="text-base font-bold text-zinc-900 dark:text-white">{foundEmail}</p>
+                </div>
+              )}
+              <div className="flex gap-3 mt-6">
+                <button onClick={() => { setShowFindEmail(false); setError(''); setFoundEmail(''); setFindName(''); setFindPhone(''); }}
+                  className="flex-1 py-3 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm text-zinc-500 font-bold">
+                  닫기
+                </button>
+                <button onClick={handleFindEmail} disabled={loading}
+                  className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-60 text-white rounded-lg text-sm font-bold">
+                  {loading ? '...' : '찾기'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

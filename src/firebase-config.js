@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache, memoryLocalCache } from 'firebase/firestore';
 import { getMessaging } from "firebase/messaging";
+import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -38,4 +39,6 @@ if (typeof window !== 'undefined') {
   }).catch(() => {});
 }
 
-export { app, auth, db, messaging, analytics };
+const functions = getFunctions(app, 'asia-northeast3');
+
+export { app, auth, db, messaging, analytics, functions };

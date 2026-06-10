@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { LEVEL_CONFIG } from '../config/levelConfig';
 
-const StudentReport = ({ student, onBack, backText, isLogoutMode }) => {
+const StudentReport = ({ student, onBack, backText, isLogoutMode, onLevelChange }) => {
   const [weekOffset, setWeekOffset] = useState(0);
+  const [isSavingLevel, setIsSavingLevel] = useState(false);
+  const [levelSaved, setLevelSaved] = useState(false);
   const MISTAKE_NOTE_COLOR = '#70011D';
 
   // --- HELPERS ---
@@ -43,6 +45,21 @@ const StudentReport = ({ student, onBack, backText, isLogoutMode }) => {
     if (id.includes('level-4')) return '고등 기초';
     if (id.includes('level-5')) return '고등 심화';
     return lvlId; 
+  };
+
+  const handleLevelSelect = async (newTitle) => {
+    if (newTitle === student.currentLevel || !onLevelChange) return;
+    setIsSavingLevel(true);
+    setLevelSaved(false);
+    try {
+      await onLevelChange(newTitle);
+      setLevelSaved(true);
+      setTimeout(() => setLevelSaved(false), 2000);
+    } catch {
+      alert("레벨 변경에 실패했습니다.");
+    } finally {
+      setIsSavingLevel(false);
+    }
   };
 
   const getDotColor = (activityData) => {
@@ -173,10 +190,28 @@ const StudentReport = ({ student, onBack, backText, isLogoutMode }) => {
               <p className="text-base font-bold text-emerald-600">{new Set((student.attendance || []).map(record => record.date)).size}일</p>
             </div>
             <div className="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100/50">
-              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">마지막 학습 위치</p>
-              <p className="text-base font-bold truncate" style={{ color: defaultColor }}>
-                {getCurrentLevelDisplay(student.currentLevel)} - {student.currentDay || 'Day 미정'}
-              </p>
+              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">마지막 학습 위치</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-base font-bold truncate" style={{ color: defaultColor }}>
+                  {getCurrentLevelDisplay(student.currentLevel)} - {student.currentDay || 'Day 미정'}
+                </p>
+                {onLevelChange && (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {levelSaved && <span className="text-[9px] font-black text-emerald-500 animate-pulse">저장됨 ✓</span>}
+                    <select
+                      value={student.currentLevel || ''}
+                      onChange={(e) => handleLevelSelect(e.target.value)}
+                      disabled={isSavingLevel}
+                      className="text-[10px] font-black px-2.5 py-1.5 rounded-xl border border-indigo-200 bg-white text-indigo-600 outline-none cursor-pointer hover:border-indigo-400 transition-colors disabled:opacity-50 shadow-sm"
+                    >
+                      <option value="" disabled>레벨 선택</option>
+                      {Object.entries(LEVEL_CONFIG).map(([id, level]) => (
+                        <option key={id} value={level.title}>{level.subTitle}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">최근 학습 시각</p>
