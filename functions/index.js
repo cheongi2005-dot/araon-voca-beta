@@ -10,6 +10,21 @@ admin.initializeApp();
 // 2. 지역 설정을 서울로 고정
 setGlobalOptions({ region: "asia-northeast3" });
 
+// 관리자 전용 함수 호출 검증: 로그인 여부 + ADMIN_EMAILS 허용목록 대조
+// (ADMIN_EMAILS는 Cloud Functions 서버 환경에만 존재하므로 클라이언트 번들에 노출되지 않음)
+const assertIsAdmin = (request) => {
+  if (!request.auth?.token?.email) {
+    throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+  }
+  const allowedEmails = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  if (!allowedEmails.includes(request.auth.token.email.toLowerCase())) {
+    throw new HttpsError("permission-denied", "관리자 권한이 없습니다.");
+  }
+};
+
 // 한국 시간 계산 함수
 const getCurrentKSTTime = () => {
   const now = new Date();
@@ -20,12 +35,61 @@ const getCurrentKSTTime = () => {
   return `${hours}:${minutes}`;
 };
 
+// 🏆 랭킹 리더보드 (leaderboard 컬렉션) 관련 유틸
+// KST 기준 월요일 시작 주(週) 키 계산 — 클라이언트의 getWeekKey()와 반드시 동일한 로직이어야 함
+const getWeekKey = (date) => {
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const kst = new Date(date.getTime() + kstOffset);
+  const dayOfWeek = kst.getUTCDay(); // KST 기준 요일 (0=일 ~ 6=토)
+  const offsetToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(kst);
+  monday.setUTCDate(kst.getUTCDate() + offsetToMonday);
+  return monday.toISOString().slice(0, 10); // "YYYY-MM-DD"
+};
+
+// attendance 레코드 목록을 주(週)별 버킷에 누적 반영
+const applyAttendanceEntriesToWeeks = (weeks, entries) => {
+  entries.forEach((record) => {
+    if (!record || typeof record === 'string' || !record.date) return;
+    const d = new Date(record.date);
+    if (isNaN(d.getTime())) return;
+
+    const weekKey = getWeekKey(d);
+    const bucket = weeks[weekKey] || { words: 0, time: 0, levelWords: {} };
+
+    const isQuiz = String(record.type || '').includes('문제풀이');
+    const score = Number(record.score || 0);
+    const time = Number(record.studyTime || 1);
+
+    bucket.time += time;
+    if (isQuiz) {
+      bucket.words += score;
+      const levelKey = String(record.levelId || '').toLowerCase().replace(/-/g, '_');
+      if (levelKey) bucket.levelWords[levelKey] = (bucket.levelWords[levelKey] || 0) + score;
+    }
+    weeks[weekKey] = bucket;
+  });
+  return weeks;
+};
+
+// 이번 주 + 지난주만 남기고 오래된 주는 정리 (문서 크기를 작게 유지)
+const pruneOldWeeks = (weeks) => {
+  const currentWeekKey = getWeekKey(new Date());
+  const lastWeekKey = getWeekKey(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+  Object.keys(weeks).forEach((k) => {
+    if (k !== currentWeekKey && k !== lastWeekKey) delete weeks[k];
+  });
+  return weeks;
+};
+
 /**
  * 🗑️ 0-b. 관리자 학생 계정 완전 삭제 (Auth + Firestore)
  */
 exports.adminDeleteStudent = onCall({
   region: "asia-northeast3",
 }, async (request) => {
+  assertIsAdmin(request);
+
   const { studentId } = request.data;
 
   if (!studentId) {
@@ -51,6 +115,8 @@ exports.adminDeleteStudent = onCall({
 exports.adminSendReply = onCall({
   region: "asia-northeast3",
 }, async (request) => {
+  assertIsAdmin(request);
+
   const { inquiryId, replyText } = request.data;
 
   if (!inquiryId || !replyText?.trim()) {
@@ -117,15 +183,181 @@ exports.tts = onCall({
 });
 
 /**
+ * 👪 0-e. 학부모 전화번호 로그인
+ * 학부모는 Firebase Auth 계정이 없으므로, 전화번호로 학생을 찾아 그 학생 전용
+ * Custom Token을 발급합니다. 클라이언트는 이 토큰으로 signInWithCustomToken 하여
+ * 이후 users/inquiries 컬렉션을 "로그인한 사용자"로서 정상적으로 읽습니다.
+ * (전화번호 조회 자체는 Admin SDK로 서버에서만 수행 — users 컬렉션을 공개 read로 열어둘 필요가 없어집니다)
+ */
+exports.parentLogin = onCall({
+  region: "asia-northeast3",
+}, async (request) => {
+  const rawPhone = String(request.data?.phone || "").trim();
+  if (!rawPhone) {
+    throw new HttpsError("invalid-argument", "전화번호를 입력해주세요.");
+  }
+
+  const digitsOnly = rawPhone.replace(/\D/g, "");
+  const formatted = digitsOnly.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
+  const candidates = Array.from(new Set([digitsOnly, formatted, rawPhone].filter(Boolean)));
+
+  const db = admin.firestore();
+  let studentDoc = null;
+  for (const candidate of candidates) {
+    const snap = await db.collection("users").where("phone", "==", candidate).limit(1).get();
+    if (!snap.empty) {
+      studentDoc = snap.docs[0];
+      break;
+    }
+  }
+
+  if (!studentDoc) {
+    throw new HttpsError("not-found", "등록된 학생을 찾을 수 없습니다.");
+  }
+
+  const studentEmail = studentDoc.id;
+  const studentData = studentDoc.data();
+
+  const customToken = await admin.auth().createCustomToken(`parent-${studentEmail}`, {
+    role: "parent",
+    studentEmail,
+  });
+
+  return { customToken, studentEmail, studentPhone: studentData.phone || null };
+});
+
+/**
+ * 🔎 0-f. 이름+전화번호로 이메일 찾기 (로그인 화면의 "이메일 찾기")
+ * users 컬렉션을 클라이언트가 직접 쿼리하지 않고, 마스킹된 이메일만 반환합니다.
+ */
+exports.findEmailByNameAndPhone = onCall({
+  region: "asia-northeast3",
+}, async (request) => {
+  const name = String(request.data?.name || "").trim();
+  const phone = String(request.data?.phone || "").trim();
+  if (!name || !phone) {
+    throw new HttpsError("invalid-argument", "이름과 전화번호를 입력해주세요.");
+  }
+
+  const db = admin.firestore();
+  const snap = await db.collection("users")
+    .where("name", "==", name)
+    .where("phone", "==", phone)
+    .limit(1)
+    .get();
+
+  if (snap.empty) {
+    throw new HttpsError("not-found", "일치하는 계정을 찾을 수 없습니다.");
+  }
+
+  const email = snap.docs[0].data().email || snap.docs[0].id;
+  const [local, domain] = String(email).split("@");
+  const maskedEmail = (!domain)
+    ? email
+    : (local.length <= 3
+      ? `${local[0]}***@${domain}`
+      : `${local.slice(0, 2)}${"*".repeat(local.length - 3)}${local.slice(-1)}@${domain}`);
+
+  return { maskedEmail };
+});
+
+/**
+ * 🏆 0-c. 랭킹 리더보드 동기화 (users 문서가 바뀔 때마다 leaderboard/{email}를 최신화)
+ * 클라이언트가 랭킹 계산을 위해 users 컬렉션 전체(무거운 attendance 배열 포함)를
+ * 내려받지 않고, 이 가벼운 leaderboard 컬렉션만 읽도록 하기 위한 백엔드 집계입니다.
+ */
+exports.syncLeaderboardOnUserUpdate = onDocumentUpdated("users/{userEmail}", async (event) => {
+  const beforeData = event.data.before.data() || {};
+  const afterData = event.data.after.data() || {};
+  const email = event.params.userEmail;
+
+  const beforeAttendance = Array.isArray(beforeData.attendance) ? beforeData.attendance : [];
+  const afterAttendance = Array.isArray(afterData.attendance) ? afterData.attendance : [];
+  // attendance는 항상 arrayUnion으로 끝에 추가되므로, 길이 차이만큼이 새로 추가된 항목입니다.
+  const newEntries = afterAttendance.length > beforeAttendance.length
+    ? afterAttendance.slice(beforeAttendance.length)
+    : [];
+
+  const profileChanged = beforeData.name !== afterData.name || beforeData.currentLevel !== afterData.currentLevel;
+  if (newEntries.length === 0 && !profileChanged) return; // 랭킹과 무관한 변경이면 스킵
+
+  const db = admin.firestore();
+  const leaderboardRef = db.collection("leaderboard").doc(email);
+
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(leaderboardRef);
+      const weeks = (snap.exists && snap.data().weeks) ? snap.data().weeks : {};
+
+      applyAttendanceEntriesToWeeks(weeks, newEntries);
+      pruneOldWeeks(weeks);
+
+      tx.set(leaderboardRef, {
+        name: afterData.name || null,
+        currentLevel: afterData.currentLevel || null,
+        weeks,
+      });
+    });
+  } catch (error) {
+    console.error("[syncLeaderboardOnUserUpdate] 리더보드 동기화 에러:", error);
+  }
+});
+
+/**
+ * 🛠️ 0-d. 리더보드 최초 백필 (관리자 전용, 1회성)
+ * leaderboard 컬렉션 도입 이전부터 있던 기존 유저들의 attendance 전체 이력을 훑어
+ * 이번 주/지난주 집계를 최초 생성합니다. 이후로는 위 트리거가 실시간으로 유지합니다.
+ */
+exports.backfillLeaderboard = onCall({
+  region: "asia-northeast3",
+  timeoutSeconds: 300,
+}, async (request) => {
+  assertIsAdmin(request);
+
+  const db = admin.firestore();
+  const usersSnap = await db.collection("users").get();
+
+  let batch = db.batch();
+  let opCount = 0;
+  let processed = 0;
+
+  for (const userDoc of usersSnap.docs) {
+    const userData = userDoc.data();
+    const attendance = Array.isArray(userData.attendance) ? userData.attendance : [];
+
+    const weeks = applyAttendanceEntriesToWeeks({}, attendance);
+    pruneOldWeeks(weeks);
+
+    const leaderboardRef = db.collection("leaderboard").doc(userDoc.id);
+    batch.set(leaderboardRef, {
+      name: userData.name || null,
+      currentLevel: userData.currentLevel || null,
+      weeks,
+    });
+    opCount++;
+    processed++;
+
+    if (opCount >= 400) { // Firestore batch 최대 500건 한도 내 여유
+      await batch.commit();
+      batch = db.batch();
+      opCount = 0;
+    }
+  }
+
+  if (opCount > 0) await batch.commit();
+
+  return { success: true, processed };
+});
+
+/**
  * 🏆 1. 랭킹 추월 알림 (v2 실시간 트리거)
  */
 exports.checkRankingOvertake = onDocumentUpdated("users/{userEmail}", async (event) => {
   const beforeData = event.data.before.data();
   const afterData = event.data.after.data();
-  
-  // 🎯 마침표(.)가 포함된 평면 필드에서 데이터를 가져옵니다.
-  const oldScore = beforeData["stats.weeklyWords"] || 0;
-  const newScore = afterData["stats.weeklyWords"] || 0;
+
+  const oldScore = beforeData.stats?.weeklyWords || 0;
+  const newScore = afterData.stats?.weeklyWords || 0;
 
   if (newScore <= oldScore) return;
 

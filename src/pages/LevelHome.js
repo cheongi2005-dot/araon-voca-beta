@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase-config';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import LoadingScreen from '../components/LoadingScreen';
 import { safeGetItem } from '../utils/storage';
 import { useTheme } from '../hooks/useTheme';
+import { useUserData } from '../contexts/UserDataContext';
 
 const LEVEL_MAP = [
   { id: "00", name: "Phonics", title: "파닉스 학습", sub: "(소리의 규칙)", path: "/phonics", color: "#4F46E5", key: "araon_voca_phonics", days: 1 },
@@ -20,91 +20,62 @@ const LEVEL_MAP = [
 function LevelHome() {
   const navigate = useNavigate();
   const [isDark, setIsDark] = useTheme();
-  
-  // ✅ [수정 1] 시작할 때 로컬 캐시에서 내 레벨을 먼저 꺼내옵니다.
-  const [currentLevelTitle, setCurrentLevelTitle] = useState(() => {
-    try {
-      const cached = JSON.parse(localStorage.getItem('araon_cached_user') || '{}');
-      return cached.currentLevel || "";
-    } catch (e) {
-      return "";
-    }
-  }); 
+  // 🎯 users/{email} 문서는 앱 전체가 공유하는 UserDataContext에서 한 번만 구독합니다.
+  const { userData, isLoading } = useUserData();
+  const currentLevelTitle = userData?.currentLevel || "";
 
-  const [isLoading, setIsLoading] = useState(!auth.currentUser);
   const [progressData, setProgressData] = useState({});
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setIsLoading(false);
+    if (!isLoading && !userData) navigate('/');
+  }, [isLoading, userData, navigate]);
 
+  useEffect(() => {
+    if (!userData) return;
+
+    const timer = setTimeout(() => {
+      const progressMap = {};
+      LEVEL_MAP.forEach(level => {
+        const dbData = userData.levelProgress?.[level.key] || {};
+        let localData = {};
         try {
-          const docSnap = await getDoc(doc(db, "users", user.email));
-          if (docSnap.exists()) {
-            const userData = docSnap.data();
-
-            if (userData.currentLevel) {
-              setCurrentLevelTitle(userData.currentLevel);
-              try {
-                const cached = JSON.parse(localStorage.getItem('araon_cached_user') || '{}');
-                cached.currentLevel = userData.currentLevel;
-                localStorage.setItem('araon_cached_user', JSON.stringify(cached));
-              } catch (e) {}
-            }
-
-            setTimeout(() => {
-              const progressMap = {};
-              LEVEL_MAP.forEach(level => {
-                const dbData = userData.levelProgress?.[level.key] || {};
-                let localData = {};
-                try {
-                  localData = JSON.parse(localStorage.getItem(level.key) || '{}');
-                } catch (e) {
-                  localData = {};
-                }
-
-                const dbTime = dbData.lastUpdated || 0;
-                const localTime = localData.lastUpdated || 0;
-                const finalData = Object.keys(dbData).length > 0
-                  ? (dbTime >= localTime ? { ...dbData } : localData)
-                  : localData;
-
-                localStorage.setItem(level.key, JSON.stringify(finalData));
-
-                let completedCount = Object.values(finalData).filter(item => item && typeof item === 'object' && item.completed).length;
-
-                if (completedCount === 0 && Array.isArray(userData.attendance)) {
-                  const levelPathId = level.path.slice(1);
-                  const completedDaysSet = new Set();
-                  userData.attendance.forEach(record => {
-                    if (typeof record === 'string' || !record.day) return;
-                    if (!String(record.type || '').includes('문제풀이')) return;
-                    if (String(record.levelId || '').toLowerCase() !== levelPathId.toLowerCase()) return;
-                    completedDaysSet.add(String(record.day));
-                  });
-                  completedCount = completedDaysSet.size;
-                }
-
-                progressMap[level.id] = {
-                  completed: completedCount,
-                  percent: Math.min(Math.round((completedCount / level.days) * 100), 100)
-                };
-              });
-              setProgressData(progressMap);
-            }, 100);
-          }
+          localData = JSON.parse(localStorage.getItem(level.key) || '{}');
         } catch (e) {
-          console.error("LevelHome fetch error:", e);
+          localData = {};
         }
-      } else {
-        setIsLoading(false);
-        navigate('/');
-      }
-    });
 
-    return () => unsubscribeAuth();
-  }, [navigate]);
+        const dbTime = dbData.lastUpdated || 0;
+        const localTime = localData.lastUpdated || 0;
+        const finalData = Object.keys(dbData).length > 0
+          ? (dbTime >= localTime ? { ...dbData } : localData)
+          : localData;
+
+        localStorage.setItem(level.key, JSON.stringify(finalData));
+
+        let completedCount = Object.values(finalData).filter(item => item && typeof item === 'object' && item.completed).length;
+
+        if (completedCount === 0 && Array.isArray(userData.attendance)) {
+          const levelPathId = level.path.slice(1);
+          const completedDaysSet = new Set();
+          userData.attendance.forEach(record => {
+            if (typeof record === 'string' || !record.day) return;
+            if (!String(record.type || '').includes('문제풀이')) return;
+            if (String(record.levelId || '').toLowerCase() !== levelPathId.toLowerCase()) return;
+            completedDaysSet.add(String(record.day));
+          });
+          completedCount = completedDaysSet.size;
+        }
+
+        progressMap[level.id] = {
+          completed: completedCount,
+          percent: Math.min(Math.round((completedCount / level.days) * 100), 100)
+        };
+      });
+      setProgressData(progressMap);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [userData]);
 
   const handleLevelSelect = async (level) => {
     const user = auth.currentUser;
@@ -115,14 +86,7 @@ function LevelHome() {
         const nextDay = level.name === "Phonics" ? `Stage ${completedCount + 1}` : `Day ${completedCount + 1}`;
 
         await setDoc(doc(db, "users", user.email), { currentLevel: level.name, currentDay: nextDay }, { merge: true });
-        
-        const cached = localStorage.getItem('araon_cached_user');
-        if (cached) {
-          const userData = JSON.parse(cached);
-          userData.currentLevel = level.name;
-          userData.currentDay = nextDay;
-          localStorage.setItem('araon_cached_user', JSON.stringify(userData));
-        }
+        // 🎯 UserDataContext의 실시간 구독이 곧 최신 currentLevel을 반영하므로 로컬 캐시 수동 갱신 불필요
         navigate('/');
       } catch (e) {
         console.error("레벨 업데이트 오류:", e);
@@ -137,13 +101,14 @@ function LevelHome() {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
-      <header className="sticky top-0 z-30 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex items-center px-6 justify-between w-full h-16 flex-1">
+      <header className="fixed top-0 left-0 right-0 z-30 flex flex-col bg-white dark:bg-[#1E1E1E] border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
+        <div className="flex items-center px-6 justify-between w-full max-w-md mx-auto h-16 flex-1">
           <button onClick={() => navigate('/settings')} className="p-2 text-black dark:text-white active:opacity-70 rounded-full"><i className="ph-bold ph-caret-left text-2xl"></i></button>
           <img src={isDark ? `${process.env.PUBLIC_URL}/Araon_logo_W.webp` : `${process.env.PUBLIC_URL}/Araon_logo.webp`} alt="ARAON" className="h-10 w-auto" />
           <button onClick={() => setIsDark(!isDark)} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
         </div>
       </header>
+      <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
 
       <main className="flex-1 py-8 px-6 overflow-y-auto">
         <div className="mb-10 px-2">

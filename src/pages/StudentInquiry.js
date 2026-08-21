@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db, auth } from '../firebase-config';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase-config';
+import { collection, query, where, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { useTheme } from '../hooks/useTheme';
+import { useUserData } from '../contexts/UserDataContext';
 
 const StudentInquiry = () => {
   const navigate = useNavigate();
+  useTheme();
   const [activeTab, setActiveTab] = useState('new'); // 'new' | 'history'
   const [category, setCategory] = useState("학습 오류");
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [myInquiries, setMyInquiries] = useState([]);
-  const [studentInfo, setStudentInfo] = useState(null);
+  // 🎯 users/{email} 문서는 앱 전체가 공유하는 UserDataContext에서 한 번만 구독합니다.
+  const { userData: studentInfo } = useUserData();
 
   const categories = ["학습 오류", "시스템 버그", "기능 건의", "기타 질문"];
 
@@ -39,20 +43,6 @@ const StudentInquiry = () => {
       ]
     }
   ];
-
-  // 1. 현재 사용자 정보 로드
-  useEffect(() => {
-    const fetchUser = async () => {
-      if (auth.currentUser) {
-        const q = query(collection(db, "users"), where("email", "==", auth.currentUser.email));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          setStudentInfo({ id: snap.docs[0].id, ...snap.docs[0].data() });
-        }
-      }
-    };
-    fetchUser();
-  }, []);
 
   // 2. 내 문의 내역 실시간 로드
   useEffect(() => {
@@ -105,8 +95,8 @@ const StudentInquiry = () => {
     <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0B] flex flex-col max-w-md mx-auto font-sans antialiased transition-colors duration-500">
       
       {/* 헤더 */}
-      <header className="sticky top-0 z-20 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex items-center justify-between w-full flex-1 h-16 px-4">
+      <header className="fixed top-0 left-0 right-0 z-20 flex flex-col bg-white dark:bg-[#1E1E1E] border-b border-zinc-100 dark:border-zinc-800" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
+        <div className="flex items-center justify-between w-full max-w-md mx-auto flex-1 h-16 px-4">
           <button onClick={() => navigate('/settings')} className="p-2 text-slate-800 dark:text-white active:scale-90 transition-transform">
             <i className="ph-bold ph-caret-left text-2xl"></i>
           </button>
@@ -114,6 +104,7 @@ const StudentInquiry = () => {
           <div className="w-10"></div>
         </div>
       </header>
+      <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
 
       {/* 탭 전환 */}
       <div className="p-4 bg-white dark:bg-[#1E1E1E] border-b border-slate-100 dark:border-zinc-800 flex gap-2 shrink-0">

@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase-config';
 import { signOut, deleteUser, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { doc, deleteDoc } from 'firebase/firestore';
 import { useSpeech } from '../hooks/useSpeech';
 import { safeGetItem } from '../utils/storage';
 import { useTheme } from '../hooks/useTheme';
+import { useUserData } from '../contexts/UserDataContext';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -14,7 +15,10 @@ const Settings = () => {
   const [modal, setModal] = useState(null);
   const [modalInput, setModalInput] = useState('');
   const { voices, voiceConfig, setVoiceConfig } = useSpeech();
-  
+  // 🎯 users/{email} 문서는 앱 전체가 공유하는 UserDataContext에서 한 번만 구독합니다.
+  // (name/phone은 로컬 캐시에는 저장되지 않지만, 실시간 구독 데이터에는 포함돼 있어 별도 fetch가 필요 없습니다)
+  const { userData: studentInfo } = useUserData();
+
   const [selectedVoiceIndex, setSelectedVoiceIndex] = useState(() => {
     const name = localStorage.getItem('araon_voca_voice_name');
     const idx = voices.findIndex(v => v.name === name);
@@ -22,18 +26,9 @@ const Settings = () => {
   });
   const [useAI, setUseAI] = useState(() => safeGetItem('araon_voca_use_ai', true));
   const [showVoicePicker, setShowVoicePicker] = useState(false);
-  
-  const [showPrivacyManager, setShowPrivacyManager] = useState(false);
-  const [privacyLoading, setPrivacyLoading] = useState(false);
 
-  // 캐시에서 읽기 — name/phone은 캐시에 없으므로 패널 열 때만 fetch
-  const [studentInfo, setStudentInfo] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('araon_cached_user') || 'null');
-    } catch (e) {
-      return null;
-    }
-  });
+  const [showPrivacyManager, setShowPrivacyManager] = useState(false);
+  const privacyLoading = showPrivacyManager && !studentInfo?.name;
 
   useEffect(() => {
     localStorage.setItem('araon_voca_use_ai', JSON.stringify(useAI));
@@ -47,21 +42,7 @@ const Settings = () => {
     return () => unsubscribe();
   }, [navigate]);
 
-  // 개인정보 패널 열릴 때만 name/phone 포함 전체 정보 fetch
-  const openPrivacyManager = async () => {
-    setShowPrivacyManager(true);
-    if (studentInfo?.name) return; // 이미 있으면 재사용
-    setPrivacyLoading(true);
-    try {
-      const user = auth.currentUser;
-      if (user) {
-        const snap = await getDoc(doc(db, "users", user.email));
-        if (snap.exists()) setStudentInfo(snap.data());
-      }
-    } finally {
-      setPrivacyLoading(false);
-    }
-  };
+  const openPrivacyManager = () => setShowPrivacyManager(true);
 
   const handleSignOut = () => setModal({ type: 'signout' });
   const handleWithdrawal = () => {
@@ -111,13 +92,14 @@ const Settings = () => {
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
       
-      <header className="sticky top-0 z-20 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex items-center justify-between w-full flex-1 px-6 h-16">
+      <header className="fixed top-0 left-0 right-0 z-20 flex flex-col bg-white dark:bg-[#1E1E1E] border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
+        <div className="flex items-center justify-between w-full max-w-md mx-auto flex-1 px-6 h-16">
           <button onClick={() => navigate('/')} className="p-2 text-black dark:text-white active:opacity-70 rounded-full"><i className="ph-bold ph-caret-left text-2xl"></i></button>
           <img src={isDark ? `${process.env.PUBLIC_URL}/Araon_logo_W.webp` : `${process.env.PUBLIC_URL}/Araon_logo.webp`} alt="ARAON" className="h-10 w-auto" />
           <button onClick={() => setIsDark(!isDark)} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
         </div>
       </header>
+      <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
 
       <main className="flex-1 p-6 space-y-3">
         <h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 tracking-tight px-2 mb-4 uppercase">Settings</h2>

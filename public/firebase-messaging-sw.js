@@ -1,5 +1,5 @@
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.9.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.9.0/firebase-messaging-compat.js');
 
 // 주의: Service Worker는 process.env를 사용할 수 없어 설정값이 여기에 포함됩니다.
 // Firebase Console > API 제한 > HTTP referrer를 설정하여 무단 사용을 방지하세요.

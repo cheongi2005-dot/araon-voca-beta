@@ -1,6 +1,6 @@
 // src/firebase-helper.js (또는 src/utils/firebase-helper.js)
 // ⚠️ 주의: 파일이 src/utils에 있다면 '../firebase-config'로, src에 있다면 './firebase-config'로 수정하세요.
-import { auth, db, messaging } from './firebase-config'; 
+import { auth, db, getMessagingInstance } from './firebase-config';
 import { doc, setDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { getToken } from "firebase/messaging";
 
@@ -10,6 +10,7 @@ import { getToken } from "firebase/messaging";
 export const refreshNotificationToken = async () => {
   try {
     if (Notification.permission !== 'granted') return;
+    const messaging = await getMessagingInstance();
     if (!messaging) {
       console.warn('[FCM] messaging이 초기화되지 않아 토큰 갱신을 건너뜁니다.');
       return;

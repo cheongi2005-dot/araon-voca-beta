@@ -1,14 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { auth, db } from '../firebase-config';
+import { auth, db, getFunctionsInstance } from '../firebase-config';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { safeGetItem } from '../utils/storage';
-
-const maskEmail = (email) => {
-  const [local, domain] = email.split('@');
-  if (local.length <= 3) return `${local[0]}***@${domain}`;
-  return `${local.slice(0, 2)}${'*'.repeat(local.length - 3)}${local.slice(-1)}@${domain}`;
-};
 
 const underlineInput = "w-full py-2.5 bg-transparent border-b border-zinc-300 dark:border-zinc-700 outline-none text-base dark:text-white placeholder-zinc-300 dark:placeholder-zinc-600 focus:border-[#70011D] transition-colors duration-200";
 const label = "block text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2";
@@ -88,15 +83,12 @@ function AuthPage() {
     setError('');
     setFoundEmail('');
     try {
-      const q = query(collection(db, 'users'), where('name', '==', findName), where('phone', '==', findPhone));
-      const snapshot = await getDocs(q);
-      if (snapshot.empty) {
-        setError('일치하는 계정을 찾을 수 없습니다.');
-      } else {
-        setFoundEmail(maskEmail(snapshot.docs[0].data().email));
-      }
-    } catch {
-      setError('조회 중 오류가 발생했습니다.');
+      const functions = await getFunctionsInstance();
+      const findEmailByNameAndPhone = httpsCallable(functions, 'findEmailByNameAndPhone');
+      const result = await findEmailByNameAndPhone({ name: findName, phone: findPhone });
+      setFoundEmail(result.data.maskedEmail);
+    } catch (err) {
+      setError(err.code === 'functions/not-found' ? '일치하는 계정을 찾을 수 없습니다.' : '조회 중 오류가 발생했습니다.');
     }
     setLoading(false);
   };

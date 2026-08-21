@@ -1,32 +1,22 @@
 import { useState, useEffect } from 'react';
 import { db, auth } from '../firebase-config';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import { safeGetItem } from '../utils/storage';
+import { useUserData } from '../contexts/UserDataContext';
 
 export const useSyncSettings = () => {
+  // 🎯 users/{email} 문서는 앱 전체가 공유하는 UserDataContext에서 한 번만 구독합니다.
+  const { userData } = useUserData();
   const [settings, setSettings] = useState(() => safeGetItem('araon_voca_settings', null));
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
-      try {
-        const docSnap = await getDoc(doc(db, "users", user.email));
-        if (docSnap.exists()) {
-          const userData = docSnap.data();
-          if (userData.settings) {
-            const cloudSettings = userData.settings;
-            setSettings(cloudSettings);
-            // 🎯 로컬 스토리지도 클라우드 기준으로 동기화
-            localStorage.setItem('araon_voca_settings', JSON.stringify(cloudSettings));
-          }
-        }
-      } catch (e) {
-        console.error('[useSyncSettings] 설정 로드 오류:', e);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
+    if (userData?.settings) {
+      const cloudSettings = userData.settings;
+      setSettings(cloudSettings);
+      // 🎯 로컬 스토리지도 클라우드 기준으로 동기화
+      localStorage.setItem('araon_voca_settings', JSON.stringify(cloudSettings));
+    }
+  }, [userData]);
 
   const updateSettings = async (newSettings) => {
     setSettings(newSettings);

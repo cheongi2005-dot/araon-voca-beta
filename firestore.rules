@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 관리자 여부 확인 함수
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == 'IMZrwAT95gaCgrjBegnjg74x7b03';
+    }
+
+    // 1. users (학생 정보) 컬렉션
+    match /users/{userId} {
+      // 🎯 학부모는 parentLogin Cloud Function이 발급하는 Custom Token으로 로그인하고,
+      // 로그인 화면의 "이메일 찾기"는 findEmailByNameAndPhone Cloud Function으로 처리되므로
+      // 더 이상 비로그인 상태의 직접 read가 필요 없습니다.
+      allow read: if request.auth != null;
+
+      // 가입 직후(createUserWithEmailAndPassword 다음) 본인 문서만 생성 가능 — 임의 문서 생성 차단
+      allow create: if request.auth != null && request.auth.token.email == userId;
+
+      // ✅ [수정된 부분] 본인 이메일과 문서 ID(userId)가 일치하거나, 관리자일 경우 수정(update) 허용!
+      allow update: if isAdmin() || (request.auth != null && request.auth.token.email == userId);
+
+      // 삭제는 여전히 관리자만 가능
+      allow delete: if isAdmin();
+    }
+
+    // 2. inquiries (문의) 컬렉션
+    match /inquiries/{inquiryId} {
+      // 학생은 로그인 상태, 학부모는 Custom Token 로그인 상태이므로 인증만 요구합니다.
+      allow read, create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+
+    // 3. leaderboard (랭킹 집계) 컬렉션 — Cloud Functions(Admin SDK)만 기록하고,
+    // 로그인한 클라이언트는 읽기만 가능합니다.
+    match /leaderboard/{email} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}

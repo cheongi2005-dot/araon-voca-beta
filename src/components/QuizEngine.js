@@ -196,9 +196,9 @@ const QuizEngine = ({ questions, mode, themeColor, onFinish, onMistake, onCorrec
 
         {mode === 'full' && (
           <div className="flex flex-col gap-4">
-            <input ref={inputRef} autoFocus type="text" value={userInput} onChange={(e) => setUserInput(e.target.value)} disabled={showFeedback}
+            <input ref={inputRef} autoFocus type="text" inputMode="text" autoComplete="off" autoCorrect="off" autoCapitalize="off" value={userInput} onChange={(e) => setUserInput(e.target.value)} disabled={showFeedback}
                    className={`w-full p-6 bg-white dark:bg-[#1E1E1E] rounded-2xl border-2 ${showFeedback ? (isCurrentCorrect ? 'border-emerald-500' : 'border-rose-500') : 'border-zinc-100 dark:border-zinc-800'} text-center text-3xl font-bold outline-none dark:text-white shadow-inner`}
-                   onKeyPress={(e) => e.key === 'Enter' && handleNext(safeInput.trim().toLowerCase() === safeWord.toLowerCase())} />
+                   onKeyDown={(e) => e.key === 'Enter' && handleNext(safeInput.trim().toLowerCase() === safeWord.toLowerCase())} />
             <button onClick={() => handleNext(safeInput.trim().toLowerCase() === safeWord.toLowerCase())} 
                     className="p-6 text-white rounded-2xl font-bold text-xl shadow-md active:scale-95 transition-all" 
                     style={{ backgroundColor: themeColor }}>

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { db } from '../firebase-config';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { auth, db, getFunctionsInstance } from '../firebase-config';
+import { signInWithCustomToken, signOut, onAuthStateChanged } from 'firebase/auth';
+import { httpsCallable } from 'firebase/functions';
+import { doc, getDoc, collection, query, where, addDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { useNavigate } from 'react-router-dom';
 import { LEVEL_CONFIG } from '../config/levelConfig';
 
@@ -133,17 +135,17 @@ const ParentPage = () => {
     }
   };
 
-  const fetchStudentByPhone = useCallback(async (phone) => {
+  // 🎯 학부모는 Firebase Auth 계정이 없으므로, parentLogin Cloud Function이 발급한
+  // Custom Token으로 로그인합니다. 이후에는 로그인한 사용자로서 학생 문서를 직접 조회합니다.
+  const fetchStudentByEmail = useCallback(async (email) => {
     setLoading(true);
     try {
-      const q = query(collection(db, "users"), where("phone", "==", phone));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const studentDoc = querySnapshot.docs[0];
-        setStudent({ id: studentDoc.id, ...studentDoc.data() });
+      const snap = await getDoc(doc(db, "users", email));
+      if (snap.exists()) {
+        setStudent({ id: snap.id, ...snap.data() });
       } else {
         alert('등록된 학생을 찾을 수 없습니다.');
-        sessionStorage.removeItem('parentViewPhone');
+        sessionStorage.removeItem('parentViewEmail');
       }
     } catch (error) {
       console.error("데이터 로드 오류:", error);
@@ -152,10 +154,14 @@ const ParentPage = () => {
     }
   }, []);
 
+  // 새로고침 시: Firebase Auth가 기존 Custom Token 세션을 복원하면 학생 정보를 다시 불러옵니다.
   useEffect(() => {
-    const parentPhone = sessionStorage.getItem('parentViewPhone');
-    if (parentPhone) fetchStudentByPhone(parentPhone);
-  }, [fetchStudentByPhone]);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const savedEmail = sessionStorage.getItem('parentViewEmail');
+      if (user && savedEmail) fetchStudentByEmail(savedEmail);
+    });
+    return () => unsubscribe();
+  }, [fetchStudentByEmail]);
 
   // --- HANDLERS ---
   const handlePhoneChange = (e) => {
@@ -174,30 +180,27 @@ const ParentPage = () => {
     e.preventDefault();
     const cleanedPhone = phoneInput.replace(/\D/g, '');
     if (cleanedPhone.length < 10) return alert("올바른 번호를 입력해주세요.");
-    
+
     setLoading(true);
     try {
-      let q = query(collection(db, "users"), where("phone", "==", cleanedPhone));
-      let snap = await getDocs(q);
-      if (snap.empty) {
-        const formatPhone = cleanedPhone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
-        q = query(collection(db, "users"), where("phone", "==", formatPhone));
-        snap = await getDocs(q);
-      }
-      if (!snap.empty) {
-        const phone = snap.docs[0].data().phone;
-        sessionStorage.setItem('parentViewPhone', phone);
-        setHasReadReplies(false); // 로그인 시 읽음 상태 초기화
-        await fetchStudentByPhone(phone);
-      } else {
-        alert("등록된 학생이 없습니다.");
-      }
-    } catch (err) { alert("로그인 오류가 발생했습니다."); }
+      const functions = await getFunctionsInstance();
+      const parentLogin = httpsCallable(functions, 'parentLogin');
+      const result = await parentLogin({ phone: cleanedPhone });
+      const { customToken, studentEmail } = result.data;
+
+      await signInWithCustomToken(auth, customToken);
+      sessionStorage.setItem('parentViewEmail', studentEmail);
+      setHasReadReplies(false); // 로그인 시 읽음 상태 초기화
+      await fetchStudentByEmail(studentEmail);
+    } catch (err) {
+      alert(err.code === 'functions/not-found' ? "등록된 학생이 없습니다." : "로그인 오류가 발생했습니다.");
+    }
     setLoading(false);
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('parentViewPhone');
+    sessionStorage.removeItem('parentViewEmail');
+    signOut(auth).catch(() => {});
     setStudent(null);
     setPhoneInput("");
     setMyInquiries([]);

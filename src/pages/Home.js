@@ -1,14 +1,17 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { auth, db } from '../firebase-config';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, collection, query, limit, getDocs } from 'firebase/firestore';
+import { db } from '../firebase-config';
+import { collection, query, limit, getDocs } from 'firebase/firestore';
 import { LEVEL_CONFIG } from '../config/levelConfig';
 import LoadingScreen from '../components/LoadingScreen';
 import { safeGetItem, safeSetItem } from '../utils/storage';
 import { useTheme } from '../hooks/useTheme';
-import { getWeekBounds } from '../utils/dateUtils';
+import { getWeekBounds, getWeekKey } from '../utils/dateUtils';
 import { getMistakeWords, migrateAttempts, MISTAKES_CACHE_KEY, refreshMistakesCache } from '../utils/mistakes';
+import { useUserData } from '../contexts/UserDataContext';
+
+// 🎯 leaderboard 컬렉션 백필 및 검증 완료 — 다시 노출합니다.
+const RANKING_ENABLED = true;
 
 const STORAGE_KEYS = Object.values(LEVEL_CONFIG).map(config => config.key);
 
@@ -35,13 +38,14 @@ const getCheeringMessage = (rank) => {
 function Home() {
   const navigate = useNavigate();
   const [isDark, setIsDark] = useTheme();
+  // 🎯 users/{email} 문서는 앱 전체가 공유하는 UserDataContext에서 한 번만 구독합니다.
+  const { userData: studentData, isLoading } = useUserData();
 
-  const [studentData, setStudentData] = useState(() => safeGetItem('araon_cached_user', null));
   const [myRankInfo, setMyRankInfo] = useState(() => safeGetItem('araon_cached_rank', null));
-  
-  const [isLoading, setIsLoading] = useState(!studentData); 
+
   const [isRankLoading, setIsRankLoading] = useState(false); // 🎯 랭킹 전용 로딩 상태 추가
   const [totalMistakes, setTotalMistakes] = useState(0); // 🎯 에러 단어 카운트 상태
+  const hasInitRef = useRef(false); // 진도 동기화/랭킹 조회는 최초 1회만
 
   useEffect(() => {
     import('./Settings');
@@ -88,7 +92,9 @@ function Home() {
       }
     } catch (_) {}
 
-    const getQuickScore = (u) => Number(u.stats?.levels?.[dbLevelKey]?.weeklyWords || 0);
+    // 🎯 leaderboard/{email} 문서의 이번 주 버킷에서 점수를 읽습니다 (서버가 미리 집계해둔 값)
+    const thisWeekKey = getWeekKey();
+    const getQuickScore = (u) => Number(u.weeks?.[thisWeekKey]?.levelWords?.[dbLevelKey] || 0);
 
     const computeRank = (allUsers) => {
       const levelUsers = allUsers
@@ -96,7 +102,8 @@ function Home() {
         .filter(u => u.currentLevel === levelInfo.title || u.currentLevel === levelInfo.subTitle || u.score > 0)
         .sort((a, b) => b.score - a.score);
       const myIdx = levelUsers.findIndex(u => u.id === data.id);
-      const myScore = getQuickScore(data);
+      const myEntry = allUsers.find(u => u.id === data.id);
+      const myScore = myEntry ? getQuickScore(myEntry) : 0;
       return {
         rank: myIdx !== -1 ? myIdx + 1 : (myScore > 0 ? levelUsers.length + 1 : null),
         score: myScore,
@@ -122,7 +129,7 @@ function Home() {
     // 3. 캐시 없을 때만 Firebase 패치
     setIsRankLoading(true);
     try {
-      const querySnapshot = await getDocs(query(collection(db, "users"), limit(200)));
+      const querySnapshot = await getDocs(query(collection(db, "leaderboard"), limit(200)));
       const allUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       const rankData = computeRank(allUsers);
       setMyRankInfo(rankData);
@@ -135,53 +142,24 @@ function Home() {
     }
   };
 
-  const sanitizeForCache = (data) => {
-    // 개인정보(name, phone, fcmToken 등)는 localStorage에 저장하지 않음
-    const { name, phone, fcmToken, lastTokenUpdate, ...safe } = data;
-    return safe;
-  };
-
-  const fetchLatestData = async (user) => {
-    try {
-      const userRef = doc(db, "users", user.email);
-      const docSnap = await getDoc(userRef);
-
-      if (docSnap.exists()) {
-        const data = { id: docSnap.id, ...docSnap.data() };
-        setStudentData(data);
-        localStorage.setItem('araon_cached_user', JSON.stringify(sanitizeForCache(data)));
-
-        // 🎯 1. 내 데이터를 가져왔으니 즉시 전체 화면 로딩 해제!
-        setIsLoading(false); 
-
-        // 🎯 2. 화면을 멈추게 했던 동기화 작업을 뒤로 미룸
-        syncLevelProgressToLocal(data.levelProgress);
-
-        const userLevel = data.currentLevel || "Foundation";
-        const levelEntry = Object.entries(LEVEL_CONFIG).find(([id, config]) => 
-          config.title === userLevel || config.subTitle === userLevel || id === userLevel.toLowerCase()
-        ) || Object.entries(LEVEL_CONFIG)[0];
-        const [levelId, levelInfo] = levelEntry;
-        const dbLevelKey = levelId.replace(/-/g, '_');
-
-        // 🎯 3. 백그라운드에서 랭킹을 따로 계산
-        fetchRankingData(data, levelInfo, dbLevelKey);
-      }
-    } catch (error) {
-      console.error("Data fetch error:", error);
-      setIsLoading(false);
-    }
-  };
-
+  // 🎯 studentData가 (컨텍스트를 통해) 처음 준비됐을 때 한 번만: 로컬 진도 동기화 + 랭킹 조회
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) fetchLatestData(user);
-      else setIsLoading(false);
-    });
-    return () => unsubscribe();
+    if (!studentData || hasInitRef.current) return;
+    hasInitRef.current = true;
+
+    syncLevelProgressToLocal(studentData.levelProgress);
+
+    const userLevel = studentData.currentLevel || "Foundation";
+    const levelEntry = Object.entries(LEVEL_CONFIG).find(([id, config]) =>
+      config.title === userLevel || config.subTitle === userLevel || id === userLevel.toLowerCase()
+    ) || Object.entries(LEVEL_CONFIG)[0];
+    const [levelId, levelInfo] = levelEntry;
+    const dbLevelKey = levelId.replace(/-/g, '_');
+
+    if (RANKING_ENABLED) fetchRankingData(studentData, levelInfo, dbLevelKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  
+  }, [studentData]);
+
   // 오답 수: 캐시 있으면 O(1) 읽기, 없으면 최초 1회 전체 스캔 후 캐시 저장
   useEffect(() => {
     const cached = localStorage.getItem(MISTAKES_CACHE_KEY);
@@ -229,13 +207,14 @@ function Home() {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
-      <header className="sticky top-0 z-20 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex-1 flex items-center px-6 justify-between w-full h-16">
+      <header className="fixed top-0 left-0 right-0 z-20 flex flex-col bg-white dark:bg-[#1E1E1E] border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
+        <div className="flex-1 flex items-center px-6 justify-between w-full max-w-md mx-auto h-16">
           <button onClick={() => navigate('/settings')} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className="ph-bold ph-list text-2xl"></i></button>
           <img src={isDark ? `${process.env.PUBLIC_URL}/Araon_logo_W.webp` : `${process.env.PUBLIC_URL}/Araon_logo.webp`} alt="ARAON" className="h-10 w-auto" />
           <button onClick={() => setIsDark(!isDark)} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
         </div>
       </header>
+      <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
 
       <main className="flex-1 py-6 overflow-y-auto">
         <div className="px-6 flex flex-col gap-8">
@@ -299,39 +278,41 @@ function Home() {
             </Link>
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-3 px-2"><h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 tracking-tight">명예의 전당 & 랭킹</h2></div>
-            <Link to="/ranking" className="block group">
-              <div className="p-6 border border-zinc-100 dark:border-zinc-800 rounded-2xl flex items-center bg-white dark:bg-[#1E1E1E] shadow-sm active:scale-[0.98] transition-all">
-                {isRankLoading && !myRankInfo ? (
-                  <div className="text-center w-full py-2">
-                    <p className="text-xs font-bold text-zinc-400 animate-pulse">랭킹 데이터를 불러오는 중... ⏳</p>
-                  </div>
-                ) : myRankInfo ? (
-                  <>
-                    <div className="w-12 h-12 bg-[#FDF2F2] dark:bg-[#2D1B1B] rounded-2xl flex items-center justify-center flex-shrink-0">
-                      {myRankInfo.score > 0 && myRankInfo.rank <= 3 ? (
-                        <span className="text-2xl">{myRankInfo.rank === 1 ? '🥇' : myRankInfo.rank === 2 ? '🥈' : '🥉'}</span>
-                      ) : (
-                        <span className="text-[#70011D] dark:text-[#FF4D4D] font-black text-lg italic">{myRankInfo.score > 0 ? myRankInfo.rank : "-"}</span>
-                      )}
+          {RANKING_ENABLED && (
+            <div>
+              <div className="flex items-center justify-between mb-3 px-2"><h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 tracking-tight">명예의 전당 & 랭킹</h2></div>
+              <Link to="/ranking" className="block group">
+                <div className="p-6 border border-zinc-100 dark:border-zinc-800 rounded-2xl flex items-center bg-white dark:bg-[#1E1E1E] shadow-sm active:scale-[0.98] transition-all">
+                  {isRankLoading && !myRankInfo ? (
+                    <div className="text-center w-full py-2">
+                      <p className="text-xs font-bold text-zinc-400 animate-pulse">랭킹 데이터를 불러오는 중... ⏳</p>
                     </div>
-                    <div className="ml-4 flex-1">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-[10px] font-black text-[#70011D] dark:text-[#FF4D4D] uppercase tracking-widest">{myRankInfo.levelTitle} 챔프</span>
-                        <span className="px-2 py-0.5 bg-[#FDF2F2] dark:bg-[#70011D]/30 text-[#70011D] dark:text-[#FF4D4D] rounded-full text-[9px] font-bold">상위 {myRankInfo.score > 0 ? Math.max(1, Math.round((myRankInfo.rank / myRankInfo.levelTotalUsers) * 100)) : 100}%</span>
+                  ) : myRankInfo ? (
+                    <>
+                      <div className="w-12 h-12 bg-[#FDF2F2] dark:bg-[#2D1B1B] rounded-2xl flex items-center justify-center flex-shrink-0">
+                        {myRankInfo.score > 0 && myRankInfo.rank <= 3 ? (
+                          <span className="text-2xl">{myRankInfo.rank === 1 ? '🥇' : myRankInfo.rank === 2 ? '🥈' : '🥉'}</span>
+                        ) : (
+                          <span className="text-[#70011D] dark:text-[#FF4D4D] font-black text-lg italic">{myRankInfo.score > 0 ? myRankInfo.rank : "-"}</span>
+                        )}
                       </div>
-                      <div className="flex items-baseline gap-1.5"><span className="text-2xl font-black dark:text-white tracking-tight">{myRankInfo.score > 0 ? `${myRankInfo.rank}위` : "도전 시작!"}</span><span className="text-xs font-bold text-zinc-400">/ {myRankInfo.levelTotalUsers}명 | {myRankInfo.score} 단어</span></div>
-                      <p className="text-[11px] font-bold text-zinc-400 mt-0.5">{myRankInfo.score > 0 ? getCheeringMessage(myRankInfo.rank) : "오늘 첫 단어를 학습해보세요! 🌱"}</p>
-                    </div>
-                    <i className="ph-bold ph-caret-right text-zinc-300 dark:text-zinc-600 group-hover:text-[#70011D] transition-colors"></i>
-                  </>
-                ) : (
-                  <div className="text-center w-full py-2"><p className="text-xs font-bold text-zinc-400">학습을 시작하고 랭킹을 확인해보세요! 🚀</p></div>
-                )}
-              </div>
-            </Link>
-          </div>
+                      <div className="ml-4 flex-1">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-[10px] font-black text-[#70011D] dark:text-[#FF4D4D] uppercase tracking-widest">{myRankInfo.levelTitle} 챔프</span>
+                          <span className="px-2 py-0.5 bg-[#FDF2F2] dark:bg-[#70011D]/30 text-[#70011D] dark:text-[#FF4D4D] rounded-full text-[9px] font-bold">상위 {myRankInfo.score > 0 ? Math.max(1, Math.round((myRankInfo.rank / myRankInfo.levelTotalUsers) * 100)) : 100}%</span>
+                        </div>
+                        <div className="flex items-baseline gap-1.5"><span className="text-2xl font-black dark:text-white tracking-tight">{myRankInfo.score > 0 ? `${myRankInfo.rank}위` : "도전 시작!"}</span><span className="text-xs font-bold text-zinc-400">/ {myRankInfo.levelTotalUsers}명 | {myRankInfo.score} 단어</span></div>
+                        <p className="text-[11px] font-bold text-zinc-400 mt-0.5">{myRankInfo.score > 0 ? getCheeringMessage(myRankInfo.rank) : "오늘 첫 단어를 학습해보세요! 🌱"}</p>
+                      </div>
+                      <i className="ph-bold ph-caret-right text-zinc-300 dark:text-zinc-600 group-hover:text-[#70011D] transition-colors"></i>
+                    </>
+                  ) : (
+                    <div className="text-center w-full py-2"><p className="text-xs font-bold text-zinc-400">학습을 시작하고 랭킹을 확인해보세요! 🚀</p></div>
+                  )}
+                </div>
+              </Link>
+            </div>
+          )}
         </div>
       </main>
     </div>

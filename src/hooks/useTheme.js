@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useLayoutEffect } from 'react';
 
 const LIGHT_COLOR = '#ffffff';
 const DARK_COLOR = '#1E1E1E';
@@ -14,7 +14,7 @@ export const applyTheme = (isDark) => {
 export const useTheme = () => {
   const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'dark');
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     applyTheme(isDark);
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }, [isDark]);

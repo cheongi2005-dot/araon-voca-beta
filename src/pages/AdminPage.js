@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { db, functions } from '../firebase-config';
+import { db, auth, getFunctionsInstance } from '../firebase-config';
 import { collection, query, getDocs, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { LEVEL_CONFIG } from '../config/levelConfig';
-import StudentReport from '../components/StudentReport'; 
+import StudentReport from '../components/StudentReport';
 
 const AdminPage = () => {
   // --- STATE MANAGEMENT ---
@@ -13,14 +14,15 @@ const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('students'); // 'students' | 'parentInquiry' | 'studentInquiry'
   const [replyInputs, setReplyInputs] = useState({});
   const [search, setSearch] = useState("");
-  const [adminCode, setAdminCode] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [backfillLoading, setBackfillLoading] = useState(false);
   const navigate = useNavigate();
-  
-  // 관리자 접속 코드 (환경변수 미설정 시 명시적 차단)
-  const ACCESS_CODE = process.env.REACT_APP_ADMIN_CODE;
-  
+
   // 안정적인 비동기 작업을 위한 Ref
   const isComponentMounted = React.useRef(true);
 
@@ -55,6 +57,7 @@ const AdminPage = () => {
     const replyText = replyInputs[inquiryId];
     if (!replyText?.trim()) return alert("답변 내용을 입력해주세요.");
     try {
+      const functions = await getFunctionsInstance();
       const adminSendReply = httpsCallable(functions, 'adminSendReply');
       await adminSendReply({ inquiryId, replyText });
       alert("답변이 전송되었습니다.");
@@ -62,6 +65,22 @@ const AdminPage = () => {
     } catch (error) {
       console.error("답변 전송 오류:", error);
       alert("전송 실패: " + (error.message || "알 수 없는 오류"));
+    }
+  };
+
+  const handleBackfillLeaderboard = async () => {
+    if (!window.confirm("전체 학생 데이터를 기준으로 랭킹 리더보드를 다시 계산합니다. 계속할까요?")) return;
+    setBackfillLoading(true);
+    try {
+      const functions = await getFunctionsInstance();
+      const backfillLeaderboard = httpsCallable(functions, 'backfillLeaderboard');
+      const result = await backfillLeaderboard();
+      alert(`리더보드 재계산 완료! (${result.data.processed}명 처리)`);
+    } catch (error) {
+      console.error("리더보드 재계산 오류:", error);
+      alert("재계산 실패: " + (error.message || "알 수 없는 오류"));
+    } finally {
+      setBackfillLoading(false);
     }
   };
 
@@ -75,6 +94,7 @@ const AdminPage = () => {
   const handleDeleteStudent = async (student) => {
     if (!window.confirm(`"${student.name || student.id}" 학생의 계정을 완전히 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) return;
     try {
+      const functions = await getFunctionsInstance();
       const adminDeleteStudent = httpsCallable(functions, 'adminDeleteStudent');
       await adminDeleteStudent({ studentId: student.id });
       setStudents(prev => prev.filter(s => s.id !== student.id));
@@ -96,21 +116,28 @@ const AdminPage = () => {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!ACCESS_CODE) {
-      alert("관리자 코드가 서버에 설정되지 않았습니다.");
-      return;
-    }
-    if (adminCode === ACCESS_CODE) {
+    setLoginError("");
+    if (!adminEmail || !adminPassword) { setLoginError("이메일과 비밀번호를 입력해주세요."); return; }
+    setLoginLoading(true);
+    try {
+      // 관리자 전용 Cloud Functions(adminDeleteStudent 등)는 서버에서 로그인한
+      // 이메일이 관리자 허용목록에 있는지 검증하므로, 실제 Firebase 로그인이 필요합니다.
+      await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
       sessionStorage.setItem('isAdmin', 'true');
       setIsLoggedIn(true);
+      setAdminPassword("");
       await fetchAllData();
-    } else { alert("코드 불일치"); }
-    setAdminCode("");
+    } catch (err) {
+      if (err.code === 'auth/invalid-credential') setLoginError('이메일 또는 비밀번호가 올바르지 않습니다.');
+      else setLoginError('로그인에 실패했습니다: ' + err.message);
+    }
+    setLoginLoading(false);
   };
 
   const handleLogout = () => {
     sessionStorage.removeItem('isAdmin');
     setIsLoggedIn(false);
+    signOut(auth).catch(() => {});
     navigate('/');
   };
 
@@ -140,8 +167,10 @@ const AdminPage = () => {
           <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6"><i className="ph-fill ph-lock-key text-indigo-600 text-3xl"></i></div>
           <h2 className="text-2xl font-black text-gray-800 mb-2">선생님 관리자 로그인</h2>
           <form onSubmit={handleLogin} className="space-y-4 mt-6">
-            <input type="password" value={adminCode} onChange={(e) => setAdminCode(e.target.value)} placeholder="관리자 접속 코드" className="w-full p-4 bg-gray-50 rounded-2xl text-center font-black outline-none focus:ring-2 focus:ring-indigo-500" autoFocus />
-            <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg">접속하기</button>
+            <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="관리자 이메일" className="w-full p-4 bg-gray-50 rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500" autoFocus />
+            <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="비밀번호" className="w-full p-4 bg-gray-50 rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500" />
+            {loginError && <p className="text-xs text-rose-500 font-bold">{loginError}</p>}
+            <button type="submit" disabled={loginLoading} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-lg disabled:opacity-60">{loginLoading ? '...' : '접속하기'}</button>
           </form>
           <button onClick={() => navigate('/')} className="mt-6 text-xs text-gray-400 font-bold">홈으로 돌아가기</button>
         </div>
@@ -176,6 +205,7 @@ const AdminPage = () => {
                 <NavBtn active={activeTab === 'parentInquiry'} onClick={() => setActiveTab('parentInquiry')} label="학부모 문의" count={getUnrepliedCount(parentInquiries)} />
                 <NavBtn active={activeTab === 'studentInquiry'} onClick={() => setActiveTab('studentInquiry')} label="학생 문의" count={getUnrepliedCount(studentInquiries)} />
               </div>
+              <button onClick={handleBackfillLeaderboard} disabled={backfillLoading} className="px-4 py-2.5 bg-white text-indigo-500 rounded-xl text-xs font-black shadow-sm border border-slate-100 active:scale-95 transition-all disabled:opacity-50">{backfillLoading ? '계산 중...' : '랭킹 재계산'}</button>
               <button onClick={handleLogout} className="px-4 py-2.5 bg-white text-rose-500 rounded-xl text-xs font-black shadow-sm border border-slate-100 active:scale-95 transition-all">로그아웃</button>
             </div>
           </header>

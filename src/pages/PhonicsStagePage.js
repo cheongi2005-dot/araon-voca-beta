@@ -15,7 +15,7 @@ const PhonicsStagePage = () => {
     <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans pb-10">
       <div className="max-w-md mx-auto">
         {/* 헤더: Home.js와 동일한 스타일 적용 */}
-        <header className="sticky top-0 z-20 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
+        <header className="sticky top-0 z-20 flex flex-col bg-white dark:bg-[#1E1E1E] border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
           <div className="flex-1 flex items-center px-6 justify-between w-full h-16">
             <button onClick={() => navigate('/')} className="p-2 text-black dark:text-white active:scale-90 transition-transform">
               <i className="ph-bold ph-caret-left text-2xl"></i>

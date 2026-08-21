@@ -2,6 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
+import ErrorBoundary from './components/ErrorBoundary';
+import { UserDataProvider } from './contexts/UserDataContext';
 
 // Datadog RUM: 첫 렌더를 막지 않도록 idle 타임에 비동기 초기화
 if (typeof window !== 'undefined') {
@@ -53,6 +55,10 @@ if ('serviceWorker' in navigator) {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <UserDataProvider>
+        <App />
+      </UserDataProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );

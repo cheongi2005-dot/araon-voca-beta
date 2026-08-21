@@ -4,14 +4,17 @@ import { LEVEL_CONFIG } from '../config/levelConfig';
 import { useSpeech } from '../hooks/useSpeech';
 import QuizEngine from '../components/QuizEngine';
 import { db, auth } from '../firebase-config';
-import { doc, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import { safeGetItem, safeSetItem } from '../utils/storage';
 import { useTheme } from '../hooks/useTheme';
 import { getMistakeWords, hasAnyMistakes, migrateAttempts, removeMistakeWord, refreshMistakesCache } from '../utils/mistakes';
+import { useUserData } from '../contexts/UserDataContext';
 
 const MyVoca = () => {
   const navigate = useNavigate();
   const { speak, muted, setMuted } = useSpeech();
+  // 🎯 users/{email} 문서는 앱 전체가 공유하는 UserDataContext에서 한 번만 구독합니다.
+  const { userData } = useUserData();
 
   // --- 상태 관리 ---
   const [view, setView] = useState('list');
@@ -27,8 +30,12 @@ const MyVoca = () => {
   
   const themeColor = "#70011D";
 
-  // --- 모든 레벨 데이터 로드 + Firebase levelProgress 동기화 ---
+  // --- 모든 레벨 데이터 로드 + Firebase levelProgress 동기화 (userData 준비되면 최초 1회) ---
+  const hasSyncedRef = React.useRef(false);
   useEffect(() => {
+    if (!userData || hasSyncedRef.current) return;
+    hasSyncedRef.current = true;
+
     const getLevelsWithMistakes = () =>
       Object.keys(LEVEL_CONFIG).filter(levelId => {
         const data = safeGetItem(LEVEL_CONFIG[levelId].key, {});
@@ -49,40 +56,31 @@ const MyVoca = () => {
         }
       };
 
-      await Promise.all([
-        // Firebase sync
-        (async () => {
-          try {
-            const user = auth.currentUser;
-            if (user) {
-              const docSnap = await getDoc(doc(db, "users", user.email));
-              if (docSnap.exists()) {
-                const levelProgress = docSnap.data().levelProgress;
-                if (levelProgress) {
-                  Object.keys(levelProgress).forEach(levelKey => {
-                    const dbData = levelProgress[levelKey];
-                    if (!dbData) return;
-                    const localData = safeGetItem(levelKey, {});
-                    if ((dbData.lastUpdated || 0) >= (localData.lastUpdated || 0)) {
-                      const restored = JSON.parse(JSON.stringify(dbData));
-                      Object.keys(restored).forEach(dayKey => {
-                        if (dayKey === 'lastUpdated') return;
-                        const day = restored[dayKey];
-                        if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
-                      });
-                      safeSetItem(levelKey, JSON.stringify(restored));
-                    }
-                  });
-                }
-              }
+      // Firebase sync — UserDataContext가 이미 구독해둔 데이터를 재사용 (별도 fetch 없음)
+      try {
+        const levelProgress = userData?.levelProgress;
+        if (levelProgress) {
+          Object.keys(levelProgress).forEach(levelKey => {
+            const dbData = levelProgress[levelKey];
+            if (!dbData) return;
+            const localData = safeGetItem(levelKey, {});
+            if ((dbData.lastUpdated || 0) >= (localData.lastUpdated || 0)) {
+              const restored = JSON.parse(JSON.stringify(dbData));
+              Object.keys(restored).forEach(dayKey => {
+                if (dayKey === 'lastUpdated') return;
+                const day = restored[dayKey];
+                if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
+              });
+              safeSetItem(levelKey, JSON.stringify(restored));
             }
-          } catch (e) {
-            console.error('[MyVoca] Firebase sync 오류:', e);
-          }
-        })(),
-        // Preload modules for levels already known to have mistakes
-        Promise.all([...preSyncLevels].map(loadModule))
-      ]);
+          });
+        }
+      } catch (e) {
+        console.error('[MyVoca] Firebase sync 오류:', e);
+      }
+
+      // Preload modules for levels already known to have mistakes
+      await Promise.all([...preSyncLevels].map(loadModule));
 
       // After sync: load modules for any newly synced levels with mistakes
       const postSyncLevels = getLevelsWithMistakes();
@@ -94,7 +92,7 @@ const MyVoca = () => {
     };
 
     loadAllData();
-  }, []);
+  }, [userData]);
 
   // --- 결과 화면 진입 시 자동으로 음소거 해제 ---
   useEffect(() => {
@@ -211,9 +209,9 @@ const MyVoca = () => {
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] font-sans transition-colors duration-500 overflow-x-hidden">
       
       {/* --- 상단 헤더: 배경이 진한 와인색이므로 b.png 로고를 invert시켜 흰색 유지 --- */}
-      <header className="sticky top-0 z-20 flex flex-col transition-colors border-b border-black/10 shadow-sm" 
+      <header className="fixed top-0 left-0 right-0 z-20 flex flex-col transition-colors border-b border-black/10 shadow-sm"
               style={{ backgroundColor: themeColor, paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(70px + env(safe-area-inset-top))' }}>
-        <div className="flex-1 flex items-center px-4 justify-between w-full h-16">
+        <div className="flex-1 flex items-center px-4 justify-between w-full max-w-md mx-auto h-16">
           <button onClick={() => view === 'list' ? navigate('/') : setView('list')} className="p-2 text-white active:opacity-70 rounded-full">
             <i className="ph-bold ph-caret-left text-2xl"></i>
           </button>
@@ -232,6 +230,7 @@ const MyVoca = () => {
           </div>
         </div>
       </header>
+      <div style={{ height: 'calc(70px + env(safe-area-inset-top))' }} />
 
       <main className="flex-1 p-6 overflow-y-auto">
         {view === 'list' && (

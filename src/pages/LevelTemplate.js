@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase-config';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, onSnapshot, serverTimestamp, increment, arrayUnion } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, increment, arrayUnion } from "firebase/firestore";
 import { LEVEL_CONFIG } from '../config/levelConfig';
 import { useStorage } from '../hooks/useStorage';
 import { useSpeech } from '../hooks/useSpeech';
@@ -11,6 +10,7 @@ import LoadingScreen from '../components/LoadingScreen';
 import { useTheme } from '../hooks/useTheme';
 import { safeGetItem, safeSetItem } from '../utils/storage';
 import { migrateAttempts, getMistakeWords } from '../utils/mistakes';
+import { useUserData } from '../contexts/UserDataContext';
 
 const LevelTemplate = () => {
   const { levelId: rawLevelId } = useParams();
@@ -29,7 +29,8 @@ const LevelTemplate = () => {
   const [quizMode, setQuizMode] = useState('choice');
   const [finalScore, setFinalScore] = useState(0);
   const [shuffledQuestions, setShuffledQuestions] = useState([]);
-  const [studentData, setStudentData] = useState(null);
+  // 🎯 users/{email} 문서는 앱 전체가 공유하는 UserDataContext에서 한 번만 구독합니다.
+  const { userData: studentData, isLoading: isUserLoading } = useUserData();
   const [startTime, setStartTime] = useState(null);
 
   const [dayHistory, setDayHistory] = useState({});
@@ -47,80 +48,64 @@ const LevelTemplate = () => {
   }, [loadedData.data, prefetchWords]);
 
   useEffect(() => {
-    let unsubscribeSnapshot;
+    if (!studentData) {
+      if (!isUserLoading) { setIsSyncLoading(false); navigate('/'); }
+      return;
+    }
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        unsubscribeSnapshot = onSnapshot(doc(db, "users", user.email), (docSnap) => {
-          if (docSnap.exists()) {
-            const userData = docSnap.data();
-            setStudentData(userData);
-            
-            if (userData.settings) {
-              setQuizSettings({
-                sound: userData.settings.quizSound ?? true,
-                emoji: userData.settings.quizEmoji ?? true
-              });
-            }
+    setIsSyncLoading(false); // 로딩 화면 즉시 해제
 
-            setIsSyncLoading(false); // 로딩 화면 즉시 해제
+    if (studentData.settings) {
+      setQuizSettings({
+        sound: studentData.settings.quizSound ?? true,
+        emoji: studentData.settings.quizEmoji ?? true
+      });
+    }
 
-            if (config?.key) {
-              setTimeout(() => { // 데이터 병합은 화면 렌더 후에 처리
-                const dbLevelData = userData.levelProgress?.[config.key] || {};
-                const localLevelData = safeGetItem(config.key, {});
+    if (!config?.key) return;
 
-                const dbTime = dbLevelData.lastUpdated || 0;
-                const localTime = localLevelData.lastUpdated || 0;
-                const rawData = Object.keys(dbLevelData).length > 0
-                  ? (dbTime >= localTime ? dbLevelData : localLevelData)
-                  : localLevelData;
+    const timer = setTimeout(() => { // 데이터 병합은 화면 렌더 후에 처리
+      const dbLevelData = studentData.levelProgress?.[config.key] || {};
+      const localLevelData = safeGetItem(config.key, {});
 
-                const finalData = JSON.parse(JSON.stringify(rawData));
-                Object.keys(finalData).forEach(dayKey => {
-                  if (dayKey === 'lastUpdated') return;
-                  const day = finalData[dayKey];
-                  if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
-                });
+      const dbTime = dbLevelData.lastUpdated || 0;
+      const localTime = localLevelData.lastUpdated || 0;
+      const rawData = Object.keys(dbLevelData).length > 0
+        ? (dbTime >= localTime ? dbLevelData : localLevelData)
+        : localLevelData;
 
-                const hasCompletedDays = Object.keys(finalData).some(k => k !== 'lastUpdated' && finalData[k]?.completed);
-                if (!hasCompletedDays && Array.isArray(userData.attendance)) {
-                  userData.attendance.forEach(record => {
-                    if (typeof record === 'string' || !record.day) return;
-                    if (!String(record.type || '').includes('문제풀이')) return;
-                    if (String(record.levelId || '').toLowerCase() !== levelId.toLowerCase()) return;
-                    const day = String(record.day);
-                    if (!finalData[day]) finalData[day] = {};
-                    finalData[day].completed = true;
-                    const s = Number(record.score || 0);
-                    finalData[day].bestScore = Math.max(finalData[day].bestScore || 0, s);
-                    if (record.method) {
-                      if (!finalData[day].scores) finalData[day].scores = {};
-                      finalData[day].scores[record.method] = Math.max(finalData[day].scores[record.method] || 0, s);
-                    }
-                  });
-                }
+      const finalData = JSON.parse(JSON.stringify(rawData));
+      Object.keys(finalData).forEach(dayKey => {
+        if (dayKey === 'lastUpdated') return;
+        const day = finalData[dayKey];
+        if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
+      });
 
-                safeSetItem(config.key, JSON.stringify(finalData));
-                setDayHistory(finalData);
-              }, 0);
-            }
-          } else {
-            setIsSyncLoading(false);
+      const hasCompletedDays = Object.keys(finalData).some(k => k !== 'lastUpdated' && finalData[k]?.completed);
+      if (!hasCompletedDays && Array.isArray(studentData.attendance)) {
+        studentData.attendance.forEach(record => {
+          if (typeof record === 'string' || !record.day) return;
+          if (!String(record.type || '').includes('문제풀이')) return;
+          if (String(record.levelId || '').toLowerCase() !== levelId.toLowerCase()) return;
+          const day = String(record.day);
+          if (!finalData[day]) finalData[day] = {};
+          finalData[day].completed = true;
+          const s = Number(record.score || 0);
+          finalData[day].bestScore = Math.max(finalData[day].bestScore || 0, s);
+          if (record.method) {
+            if (!finalData[day].scores) finalData[day].scores = {};
+            finalData[day].scores[record.method] = Math.max(finalData[day].scores[record.method] || 0, s);
           }
         });
-      } else {
-        setIsSyncLoading(false);
-        navigate('/');
       }
-    });
 
-    return () => {
-      unsubscribeAuth();
-      if (unsubscribeSnapshot) unsubscribeSnapshot();
-    };
+      safeSetItem(config.key, JSON.stringify(finalData));
+      setDayHistory(finalData);
+    }, 0);
+
+    return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config?.key, navigate]);
+  }, [studentData, config?.key, navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -211,6 +196,7 @@ const LevelTemplate = () => {
         updateData["currentLevel"] = config.title;
         updateData["currentDay"] = `Day ${selectedDay}`;
         updateData["lastScore"] = numericScore;
+        updateData["wrongCount"] = Math.max(0, Number(total || 0) - numericScore);
         updateData["stats.weeklyWords"] = increment(numericImprovement);
         updateData["stats.totalWords"] = increment(numericImprovement);
         updateData[`stats.levels.${levelKey}.weeklyWords`] = increment(numericImprovement);
@@ -240,13 +226,14 @@ const LevelTemplate = () => {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
-      <header className="sticky top-0 z-20 flex flex-col border-b border-black/10 shadow-sm transition-colors" style={{ backgroundColor: config.color, paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex-1 flex items-center px-4 justify-between w-full h-16">
+      <header className="fixed top-0 left-0 right-0 z-20 flex flex-col border-b border-black/10 shadow-sm transition-colors" style={{ backgroundColor: config.color, paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
+        <div className="flex-1 flex items-center px-4 justify-between w-full max-w-md mx-auto h-16">
           <button onClick={() => view === 'home' ? navigate('/') : setView(view === 'quiz' ? 'modeSelect' : 'home')} className="p-2 text-white"><i className="ph-bold ph-caret-left text-2xl"></i></button>
           <img src={`${process.env.PUBLIC_URL}/Araon_logo_b.png`} alt="ARAON" className="h-7 mx-auto invert brightness-200" />
           <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 text-white"><i className={`ph-bold ${isDarkMode ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
         </div>
       </header>
+      <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
 
       <main className="flex-1 p-6 overflow-y-auto">
         {view === 'home' && (
@@ -346,7 +333,7 @@ const LevelTemplate = () => {
             <div className="text-center"><h2 className="text-xl font-black dark:text-white">퀴즈 모드 선택</h2><p className="text-zinc-400 text-sm mt-1">원하는 스타일로 복습하세요</p></div>
             <div className="space-y-3">
               {[ { id: 'choice', title: '4지선다형', icon: 'ph-list-numbers', color: 'bg-amber-100 text-amber-600' }, { id: 'letter', title: '철자 채우기', icon: 'ph-textbox', color: 'bg-blue-100 text-blue-600' }, { id: 'full', title: '전체 받아쓰기', icon: 'ph-keyboard', color: 'bg-purple-100 text-purple-600' } ].map(m => (
-                <button key={m.id} onClick={() => { setShuffledQuestions([...currentDayData].sort(() => Math.random() - 0.5)); setQuizMode(m.id); setView('quiz'); }} className="w-full p-5 bg-white dark:bg-[#1E1E1E] rounded-2xl border flex items-center justify-between shadow-sm">
+                <button key={m.id} onClick={() => { if (currentDayData.length === 0) { alert('⚠️ 문제 데이터를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'); return; } setShuffledQuestions([...currentDayData].sort(() => Math.random() - 0.5)); setQuizMode(m.id); setView('quiz'); }} className="w-full p-5 bg-white dark:bg-[#1E1E1E] rounded-2xl border flex items-center justify-between shadow-sm">
                   <div className="flex items-center gap-5"><div className={`w-12 h-12 rounded-2xl ${m.color} flex items-center justify-center text-2xl`}><i className={`ph-fill ${m.icon}`}></i></div><p className="font-bold dark:text-white">{m.title}</p></div>
                   <div className="text-right"><p className="text-[8px] font-black text-zinc-300 uppercase">Best</p><span className="text-xs font-black text-zinc-400">{dayHistory[selectedDay]?.scores?.[m.id] || 0}/{currentDayData.length}</span></div>
                 </button>

@@ -1,20 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth } from '../firebase-config';
-import { doc, getDoc } from "firebase/firestore";
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from '../firebase-config';
+import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { LEVEL_CONFIG } from '../config/levelConfig';
 import LoadingScreen from '../components/LoadingScreen';
+import { useUserData } from '../contexts/UserDataContext';
 
 const StudentDashboardMobile = () => {
   // --- STATE MANAGEMENT ---
-  const [student, setStudent] = useState(() => {
-    try {
-      const cached = localStorage.getItem('araon_cached_user');
-      return cached ? { id: JSON.parse(cached).email, ...JSON.parse(cached) } : null;
-    } catch { return null; }
-  });
-  const [loading, setLoading] = useState(() => !localStorage.getItem('araon_cached_user'));
+  // 🎯 users/{email} 문서는 앱 전체가 공유하는 UserDataContext에서 한 번만 구독합니다.
+  const { userData: student, isLoading: loading } = useUserData();
   const [weekOffset, setWeekOffset] = useState(0);
   const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'dark');
   const navigate = useNavigate();
@@ -27,38 +22,10 @@ const StudentDashboardMobile = () => {
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
-  // --- DATA FETCHING ---
+  // --- DATA FETCHING (로그아웃 상태면 홈으로) ---
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const docRef = doc(db, "users", user.email);
-          const docSnap = await getDoc(docRef);
-
-          if (docSnap.exists()) {
-            const freshData = { id: docSnap.id, ...docSnap.data() };
-            setStudent(freshData);
-            localStorage.setItem('araon_cached_user', JSON.stringify(freshData));
-          } else {
-            console.warn("해당 이메일의 문서가 Firestore에 없습니다:", user.email);
-          }
-        } catch (error) {
-          console.error("데이터 로드 오류:", error);
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        const timer = setTimeout(() => {
-          if (!auth.currentUser) {
-            setLoading(false);
-            navigate('/');
-          }
-        }, 1500);
-        return () => clearTimeout(timer);
-      }
-    });
-    return () => unsubscribe();
-  }, [navigate]);
+    if (!loading && !student && !auth.currentUser) navigate('/');
+  }, [loading, student, navigate]);
 
   // --- EARLY RETURNS ---
   if (loading) {
@@ -66,6 +33,7 @@ const StudentDashboardMobile = () => {
   }
 
   if (!student) {
+    if (!auth.currentUser) return <LoadingScreen />; // 곧 위 이펙트가 홈으로 이동시킴
     return (
       <div className="min-h-screen flex flex-col items-center justify-center dark:bg-[#0A0A0B] bg-[#F8F9FA] p-4">
         <div className="bg-white dark:bg-[#1E1E1E] p-8 rounded-3xl shadow-sm text-center border border-slate-100 dark:border-zinc-800">

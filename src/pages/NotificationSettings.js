@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth, messaging } from '../firebase-config';
+import { auth, getMessagingInstance } from '../firebase-config';
 import { serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { getToken } from "firebase/messaging";
 import { useSyncSettings } from '../hooks/useSyncSettings';
@@ -31,6 +31,7 @@ const NotificationSettings = () => {
     try {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
+        const messaging = await getMessagingInstance();
         const VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY;
         const token = await getToken(messaging, { vapidKey: VAPID_KEY });
         
@@ -91,15 +92,17 @@ const NotificationSettings = () => {
       return;
     }
     try {
-      const registration = await navigator.serviceWorker.getRegistration();
-      if (registration) {
-        registration.showNotification("🔔 아라온 보카 테스트", {
-          body: "알림 서비스가 정상적으로 연결되었습니다!",
-          icon: "/logo192.png",
-          tag: "test-notif"
-        });
-        alert("테스트 알림을 발송했습니다.");
-      }
+      // serviceWorker.ready는 등록이 끝내 안 되면 영원히 멈출 수 있어 타임아웃을 둠
+      const registration = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('알림 서비스 준비 시간이 초과되었습니다.')), 5000))
+      ]);
+      await registration.showNotification("🔔 아라온 보카 테스트", {
+        body: "알림 서비스가 정상적으로 연결되었습니다!",
+        icon: "/logo-v2-192.png",
+        tag: "test-notif"
+      });
+      alert("테스트 알림을 발송했습니다.");
     } catch (error) {
       alert("오류 발생: " + error.message);
     }
@@ -107,13 +110,14 @@ const NotificationSettings = () => {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased relative overflow-hidden text-zinc-900 dark:text-white pb-10">
-      <header className="sticky top-0 z-30 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex items-center px-4 justify-between w-full h-16 flex-1">
+      <header className="fixed top-0 left-0 right-0 z-30 flex flex-col bg-white dark:bg-[#1E1E1E] border-b border-zinc-100 dark:border-zinc-800" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
+        <div className="flex items-center px-4 justify-between w-full max-w-md mx-auto h-16 flex-1">
           <button onClick={() => navigate(-1)} className="p-2 dark:text-white active:opacity-70"><i className="ph-bold ph-caret-left text-2xl"></i></button>
           <h1 className="text-sm font-black tracking-[0.2em] uppercase">Settings</h1>
           <button onClick={() => setIsDark(!isDark)} className="p-2 dark:text-white"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
         </div>
       </header>
+      <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
 
       <main className="flex-1 p-6">
         <div className="mb-10 px-2">

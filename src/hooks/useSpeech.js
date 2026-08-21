@@ -158,7 +158,8 @@ export const useSpeech = () => {
         const audio = new Audio(audioCache.get(text));
         audio.volume = voiceConfig.volume;
         audio.playbackRate = voiceConfig.rate;
-        await audio.play();
+        // 모바일 자동재생 정책 등으로 play()가 reject될 수 있어 브라우저 TTS로 폴백
+        try { await audio.play(); } catch { playBrowserTTS(text, savedVoiceName); }
         return;
       }
 
@@ -170,7 +171,7 @@ export const useSpeech = () => {
         const audio = new Audio(url);
         audio.volume = voiceConfig.volume;
         audio.playbackRate = voiceConfig.rate;
-        await audio.play();
+        try { await audio.play(); } catch { playBrowserTTS(text, savedVoiceName); }
         return;
       }
 

@@ -5,9 +5,19 @@ import { useNavigate } from 'react-router-dom';
 import { LEVEL_CONFIG } from '../config/levelConfig';
 import LoadingScreen from '../components/LoadingScreen';
 import { useTheme } from '../hooks/useTheme';
-import { getWeekBounds } from '../utils/dateUtils';
+import { getWeekKey } from '../utils/dateUtils';
 
 const RANKING_CACHE_TTL = 3 * 60 * 1000; // 3분 캐시
+
+// leaderboard/{email} 문서의 주간 버킷에서 점수를 읽습니다.
+// (functions/index.js가 users 문서 변경 시 서버에서 미리 집계해두는 값)
+const getScore = (user, type, weekKey, dbLevelKey) => {
+  const bucket = user.weeks?.[weekKey];
+  if (!bucket) return 0;
+  if (type === 'level') return bucket.levelWords?.[dbLevelKey] || 0;
+  if (type === 'passion') return bucket.time || 0;
+  return (bucket.words || 0) + (bucket.time || 0); // hall (및 그 외 타입은 동일하게 취급)
+};
 
 const RankingPage = () => {
   const [activeTab, setActiveTab] = useState('hall');
@@ -41,11 +51,10 @@ const RankingPage = () => {
       }
     } catch (_) {}
 
-    // Firestore에서 가져오기
-    const coll = collection(db, "users");
+    // Firestore에서 가져오기 — 무거운 users 컬렉션 대신 랭킹 전용 경량 leaderboard 컬렉션에서 읽습니다.
     const [countSnapshot, querySnapshot] = await Promise.all([
-      getCountFromServer(coll),
-      getDocs(query(coll, limit(500)))
+      getCountFromServer(collection(db, "users")),
+      getDocs(query(collection(db, "leaderboard"), limit(500)))
     ]);
     const count = countSnapshot.data().count;
     const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -72,75 +81,42 @@ const RankingPage = () => {
         return entry ? entry[0].replace(/-/g, '_') : title.toLowerCase().replace(/\s+/g, '_'); 
       };
 
-      const { startOfWeek, endOfWeek } = getWeekBounds(0);
-      const { startOfWeek: startOfLastWeek, endOfWeek: endOfLastWeek } = getWeekBounds(-1);
-
-      // 🎯 [핵심 수정] 파이어베이스 날짜 형식 오류 완벽 해결!
-      const calculateScore = (user, type, start, end) => {
-        let words = 0; let time = 0; let levelWords = 0;
-        if (user.attendance && Array.isArray(user.attendance)) {
-          user.attendance.forEach(act => {
-            if (!act || !act.date) return;
-            
-            // Firebase Timestamp 객체인지, 일반 문자열인지 검사해서 정확히 변환합니다.
-            let d;
-            if (typeof act.date?.toDate === 'function') {
-              d = act.date.toDate();
-            } else if (act.date?.seconds) {
-              d = new Date(act.date.seconds * 1000);
-            } else {
-              d = new Date(act.date);
-            }
-
-            // 정확하게 변환된 날짜로 지난주/이번주 필터링을 진행합니다.
-            if (d >= start && d <= end) {
-              const s = Number(act.score || 0);
-              const t = Number(act.studyTime || 1);
-              time += t;
-              if (act.type?.includes('문제풀이')) {
-                words += s;
-                if (act.levelId?.replace(/-/g, '_') === getLevelKeyByTitle(selectedLevel)) levelWords += s;
-              }
-            }
-          });
-        }
-        if (type === 'level') return levelWords;
-        if (type === 'passion') return time;
-        return words + time;
-      };
+      const dbLevelKey = getLevelKeyByTitle(selectedLevel);
+      const thisWeekKey = getWeekKey();
+      const lastWeekKey = getWeekKey(new Date(), -1);
 
       // ✅ 0점 필터링 복구: 실제로 지난주에 점수를 낸 찐 1~3등만 시상대에 올립니다.
       const lastWeekData = allUsers
         .map(u => {
-          const lwWords = calculateScore(u, 'level', startOfLastWeek, endOfLastWeek);
-          const lwTime = calculateScore(u, 'passion', startOfLastWeek, endOfLastWeek);
-          const lwHall = calculateScore(u, 'hall', startOfLastWeek, endOfLastWeek);
+          const lwWords = getScore(u, 'level', lastWeekKey, dbLevelKey);
+          const lwTime = getScore(u, 'passion', lastWeekKey, dbLevelKey);
+          const lwHall = getScore(u, 'hall', lastWeekKey, dbLevelKey);
           let targetScore = (activeTab === 'level') ? lwWords : (activeTab === 'passion') ? lwTime : lwHall;
-          return { 
-            ...u, 
+          return {
+            ...u,
             lastWeekScore: targetScore,
-            lastWeekWords: (activeTab === 'level') ? lwWords : calculateScore(u, 'level_total', startOfLastWeek, endOfLastWeek),
+            lastWeekWords: (activeTab === 'level') ? lwWords : lwHall,
             lastWeekTime: lwTime,
-            lastWeekOverallScore: lwHall 
+            lastWeekOverallScore: lwHall
           };
         })
-        // .filter(u => u.lastWeekScore > 0) 
+        // .filter(u => u.lastWeekScore > 0)
         .sort((a, b) => b.lastWeekScore - a.lastWeekScore);
 
       setLastWeekTop3(lastWeekData.slice(0, 3));
 
       const lastWeekOverallWinner = [...allUsers]
-        .map(u => ({ id: u.id, score: calculateScore(u, 'hall', startOfLastWeek, endOfLastWeek) }))
+        .map(u => ({ id: u.id, score: getScore(u, 'hall', lastWeekKey, dbLevelKey) }))
         .sort((a, b) => b.score - a.score)[0];
       const lastWeekWinnerId = lastWeekOverallWinner?.score > 0 ? lastWeekOverallWinner.id : null;
 
       // 이번 주 랭킹 리스트 생성
-      let filtered = (activeTab === 'level') ? allUsers.filter(u => u.currentLevel === selectedLevel || calculateScore(u, 'level', startOfWeek, endOfWeek) > 0) : allUsers;
+      let filtered = (activeTab === 'level') ? allUsers.filter(u => u.currentLevel === selectedLevel || getScore(u, 'level', thisWeekKey, dbLevelKey) > 0) : allUsers;
       const sorted = filtered
         .map(u => {
-          return { 
-            ...u, 
-            score: calculateScore(u, activeTab, startOfWeek, endOfWeek), 
+          return {
+            ...u,
+            score: getScore(u, activeTab, thisWeekKey, dbLevelKey),
             isLastWeekChamp: u.id === lastWeekWinnerId,
             lastWeekRank: lastWeekData.findIndex(lw => lw.id === u.id) + 1 || null
           };
@@ -279,14 +255,15 @@ const RankingPage = () => {
         }
       `}</style>
 
+      <header className="fixed top-0 left-0 right-0 z-20 flex flex-col bg-white dark:bg-[#1E1E1E] border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
+        <div className="flex-1 flex items-center px-4 justify-between w-full max-w-md mx-auto h-16">
+          <button onClick={() => navigate('/')} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className="ph-bold ph-caret-left text-2xl"></i></button>
+          <img src={isDark ? `${process.env.PUBLIC_URL}/Araon_logo_W.webp` : `${process.env.PUBLIC_URL}/Araon_logo.webp`} alt="ARAON" className="h-10 w-auto" />
+          <button onClick={() => setIsDark(!isDark)} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
+        </div>
+      </header>
       <div className="max-w-md mx-auto">
-        <header className="sticky top-0 z-20 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-          <div className="flex-1 flex items-center px-4 justify-between w-full h-16">
-            <button onClick={() => navigate('/')} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className="ph-bold ph-caret-left text-2xl"></i></button>
-            <img src={isDark ? `${process.env.PUBLIC_URL}/Araon_logo_W.webp` : `${process.env.PUBLIC_URL}/Araon_logo.webp`} alt="ARAON" className="h-10 w-auto" />
-            <button onClick={() => setIsDark(!isDark)} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
-          </div>
-        </header>
+        <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
 
         <div className="p-6">
           <div className="mb-6">
