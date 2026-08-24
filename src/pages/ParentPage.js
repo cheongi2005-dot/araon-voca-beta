@@ -96,13 +96,14 @@ const ParentPage = () => {
   };
 
   // 🎯 DATA FETCHING (실시간 데이터 연동 및 빨간 점 제어)
-  // student.phone이 바뀔 때만 재구독 (activeTab/hasReadReplies 변경 시 재구독 불필요)
+  // student.id(=학생 로그인 이메일)가 바뀔 때만 재구독 (activeTab/hasReadReplies 변경 시 재구독 불필요)
+  // studentAuthEmail 기준으로 조회해야 보안 규칙(본인 자녀 것만 read 허용)을 통과합니다.
   useEffect(() => {
-    if (!student?.phone) return;
+    if (!student?.id) return;
 
     const q = query(
       collection(db, "inquiries"),
-      where("studentPhone", "==", student.phone)
+      where("studentAuthEmail", "==", student.id)
     );
 
     const unsubscribe = onSnapshot(q, (snap) => {
@@ -124,7 +125,7 @@ const ParentPage = () => {
     });
 
     return () => unsubscribe();
-  }, [student?.phone]);
+  }, [student?.id]);
 
   // 🎯 탭 전환 시 "답변 확인"을 누르면 점 사라짐
   const handleTabChange = (tabName) => {
@@ -216,6 +217,7 @@ const ParentPage = () => {
       await addDoc(collection(db, "inquiries"), {
         studentName: student?.name || "알 수 없음",
         studentPhone: student?.phone || "알 수 없음",
+        studentAuthEmail: student?.id || null, // 🎯 보안 규칙이 본인(자녀) 문의를 판별하는 기준
         content: inquiryContent,
         targetEmail: "di4377491@gmail.com",
         createdAt: serverTimestamp(),

@@ -14,7 +14,7 @@ const LEVEL_MAP = [
   { id: "03", name: "Intermediate", title: "Level 2", sub: "(중등 기초)", path: "/level-2", color: "#9CAF88", key: "araon_voca_level_2", days: 30 },
   { id: "04", name: "Advanced", title: "Level 3", sub: "(중등 심화)", path: "/level-3", color: "#006039", key: "araon_voca_level_3", days: 30 },
   { id: "05", name: "Expert", title: "Level 4", sub: "(고등 기초)", path: "/level-4", color: "#151E3D", key: "araon_voca_level_4", days:25 },
-  { id: "06", name: "Academic", title: "Level 5", sub: "(고등 심화)", path: "/level-5", color: "#32127A", key: "araon_voca_level_5", days: 30 },
+  { id: "06", name: "Academic", title: "Level 5", sub: "(고등 심화)", path: "/level-5", color: "#000080", key: "araon_voca_level_5", days: 30 },
 ];
 
 function LevelHome() {

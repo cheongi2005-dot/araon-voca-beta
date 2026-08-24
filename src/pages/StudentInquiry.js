@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../firebase-config';
+import { auth, db } from '../firebase-config';
 import { collection, query, where, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useTheme } from '../hooks/useTheme';
 import { useUserData } from '../contexts/UserDataContext';
@@ -45,11 +45,13 @@ const StudentInquiry = () => {
   ];
 
   // 2. 내 문의 내역 실시간 로드
+  // 🎯 studentAuthEmail(=로그인 이메일) 기준으로 조회해야 보안 규칙(본인 것만 read 허용)을 통과합니다.
   useEffect(() => {
-    if (!studentInfo?.phone) return;
+    const myEmail = auth.currentUser?.email;
+    if (!myEmail) return;
 
-    const q = query(collection(db, "inquiries"), where("studentPhone", "==", studentInfo.phone));
-    
+    const q = query(collection(db, "inquiries"), where("studentAuthEmail", "==", myEmail));
+
     const unsubscribe = onSnapshot(q, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       // 최신순 정렬
@@ -63,7 +65,7 @@ const StudentInquiry = () => {
     });
 
     return () => unsubscribe();
-  }, [studentInfo?.phone]);
+  }, []);
 
   // 3. 문의 전송
   const handleSubmit = async () => {
@@ -74,6 +76,7 @@ const StudentInquiry = () => {
       await addDoc(collection(db, "inquiries"), {
         studentName: studentInfo?.name || "학생",
         studentPhone: studentInfo?.phone || "알수없음",
+        studentAuthEmail: auth.currentUser?.email || null, // 🎯 보안 규칙이 본인 문의를 판별하는 기준
         userType: "student", // 🌟 학부모와 구분
         category: category,
         content: content,

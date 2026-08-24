@@ -21,6 +21,7 @@ const AdminPage = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [backfillLoading, setBackfillLoading] = useState(false);
+  const [inquiryBackfillLoading, setInquiryBackfillLoading] = useState(false);
   const navigate = useNavigate();
 
   // 안정적인 비동기 작업을 위한 Ref
@@ -81,6 +82,24 @@ const AdminPage = () => {
       alert("재계산 실패: " + (error.message || "알 수 없는 오류"));
     } finally {
       setBackfillLoading(false);
+    }
+  };
+
+  // 🎯 보안 규칙 강화(본인 문의만 열람 가능) 이전에 저장된 문의들은 studentAuthEmail이 없어
+  // 학생/학부모 본인에게도 안 보이므로, 1회 실행해 기존 문의에 해당 필드를 채워 넣습니다.
+  const handleBackfillInquiryOwners = async () => {
+    if (!window.confirm("기존 문의 데이터에 작성자 이메일 필드를 채워 넣습니다. 계속할까요?")) return;
+    setInquiryBackfillLoading(true);
+    try {
+      const functions = await getFunctionsInstance();
+      const backfillInquiryOwners = httpsCallable(functions, 'backfillInquiryOwners');
+      const result = await backfillInquiryOwners();
+      alert(`문의 작성자 필드 채우기 완료! (${result.data.updated}건 갱신, ${result.data.skipped}건 건너뜀)`);
+    } catch (error) {
+      console.error("문의 백필 오류:", error);
+      alert("실패: " + (error.message || "알 수 없는 오류"));
+    } finally {
+      setInquiryBackfillLoading(false);
     }
   };
 
@@ -206,6 +225,7 @@ const AdminPage = () => {
                 <NavBtn active={activeTab === 'studentInquiry'} onClick={() => setActiveTab('studentInquiry')} label="학생 문의" count={getUnrepliedCount(studentInquiries)} />
               </div>
               <button onClick={handleBackfillLeaderboard} disabled={backfillLoading} className="px-4 py-2.5 bg-white text-indigo-500 rounded-xl text-xs font-black shadow-sm border border-slate-100 active:scale-95 transition-all disabled:opacity-50">{backfillLoading ? '계산 중...' : '랭킹 재계산'}</button>
+              <button onClick={handleBackfillInquiryOwners} disabled={inquiryBackfillLoading} className="px-4 py-2.5 bg-white text-indigo-500 rounded-xl text-xs font-black shadow-sm border border-slate-100 active:scale-95 transition-all disabled:opacity-50">{inquiryBackfillLoading ? '처리 중...' : '문의 작성자 필드 채우기'}</button>
               <button onClick={handleLogout} className="px-4 py-2.5 bg-white text-rose-500 rounded-xl text-xs font-black shadow-sm border border-slate-100 active:scale-95 transition-all">로그아웃</button>
             </div>
           </header>

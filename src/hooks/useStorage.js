@@ -29,12 +29,16 @@ export const useStorage = (key) => {
     }
   }, [key, data.lastUpdated]);
 
+  // 🎯 prev(훅 마운트 시점에 로드된 상태)만 기준으로 병합하면, 이 훅 밖에서(예: LevelTemplate의
+  // Firebase 동기화 effect) 같은 key에 직접 쓴 최신 localStorage 내용을 놓치고 통째로 덮어써
+  // 버릴 수 있다. 쓰기 직전 localStorage를 다시 읽어 그 위에 병합한다.
   const addMistake = useCallback((day, word) => {
     setData(prev => {
-      const dayData = prev[day] || { attempts: {} };
+      const current = safeGetItem(key, prev) || prev;
+      const dayData = current[day] || { attempts: {} };
       const wordString = typeof word === 'object' ? word.word : word;
       const updated = {
-        ...prev,
+        ...current,
         [day]: { ...dayData, attempts: addMistakeWord(dayData.attempts, wordString) },
         lastUpdated: Date.now()
       };
@@ -46,10 +50,11 @@ export const useStorage = (key) => {
 
   const saveProgress = useCallback((day, score, total, mode) => {
     setData(prev => {
-      const currentDay = prev[day] || {};
+      const current = safeGetItem(key, prev) || prev;
+      const currentDay = current[day] || {};
       const currentScores = currentDay.scores || {};
       const updated = {
-        ...prev,
+        ...current,
         [day]: {
           ...currentDay,
           completed: true,

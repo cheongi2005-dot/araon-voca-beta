@@ -350,6 +350,59 @@ exports.backfillLeaderboard = onCall({
 });
 
 /**
+ * 🛠️ 0-g. 기존 문의(inquiries) 문서에 studentAuthEmail 백필 (관리자 전용, 1회성)
+ * studentAuthEmail(작성자의 users 문서 ID)이 없으면 firestore.rules가 본인 열람을 허용하지 않으므로,
+ * 필드 도입 이전에 저장된 문의들을 studentPhone 기준으로 users 컬렉션과 매칭해 채워 넣습니다.
+ * (전화번호가 유일하지 않을 수 있어, 일치하는 첫 사용자를 사용합니다 — parentLogin과 동일한 방식)
+ */
+exports.backfillInquiryOwners = onCall({
+  region: "asia-northeast3",
+  timeoutSeconds: 300,
+}, async (request) => {
+  assertIsAdmin(request);
+
+  const db = admin.firestore();
+  const inquiriesSnap = await db.collection("inquiries").get();
+
+  let batch = db.batch();
+  let opCount = 0;
+  let updated = 0;
+  let skipped = 0;
+  const phoneToEmail = new Map();
+
+  for (const inquiryDoc of inquiriesSnap.docs) {
+    const data = inquiryDoc.data();
+    if (data.studentAuthEmail) { skipped++; continue; }
+
+    const phone = String(data.studentPhone || "").trim();
+    if (!phone) { skipped++; continue; }
+
+    let email = phoneToEmail.get(phone);
+    if (email === undefined) {
+      const userSnap = await db.collection("users").where("phone", "==", phone).limit(1).get();
+      email = userSnap.empty ? null : userSnap.docs[0].id;
+      phoneToEmail.set(phone, email);
+    }
+
+    if (!email) { skipped++; continue; }
+
+    batch.update(inquiryDoc.ref, { studentAuthEmail: email });
+    opCount++;
+    updated++;
+
+    if (opCount >= 400) {
+      await batch.commit();
+      batch = db.batch();
+      opCount = 0;
+    }
+  }
+
+  if (opCount > 0) await batch.commit();
+
+  return { success: true, updated, skipped };
+});
+
+/**
  * 🏆 1. 랭킹 추월 알림 (v2 실시간 트리거)
  */
 exports.checkRankingOvertake = onDocumentUpdated("users/{userEmail}", async (event) => {

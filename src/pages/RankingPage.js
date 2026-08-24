@@ -52,8 +52,11 @@ const RankingPage = () => {
     } catch (_) {}
 
     // Firestore에서 가져오기 — 무거운 users 컬렉션 대신 랭킹 전용 경량 leaderboard 컬렉션에서 읽습니다.
+    // 🎯 users 컬렉션은 보안 규칙상 본인 문서만 조회 가능하므로, 전체 회원수 카운트도
+    // 공개 랭킹용으로 이미 열려 있는 leaderboard 컬렉션 기준으로 셉니다.
+    // (활동 이력이 전혀 없어 leaderboard 문서가 아직 생성되지 않은 신규 가입자는 집계에서 제외됩니다)
     const [countSnapshot, querySnapshot] = await Promise.all([
-      getCountFromServer(collection(db, "users")),
+      getCountFromServer(collection(db, "leaderboard")),
       getDocs(query(collection(db, "leaderboard"), limit(500)))
     ]);
     const count = countSnapshot.data().count;
