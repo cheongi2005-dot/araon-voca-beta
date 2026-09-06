@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LEVEL_CONFIG } from '../config/levelConfig';
+import { LEVEL_CONFIG, LEVEL_ENTRIES, toDbLevelKey, toLevelId } from '../config/levelConfig';
+import { BRAND_COLOR } from '../config/theme';
 import { useSpeech } from '../hooks/useSpeech';
 import QuizEngine from '../components/QuizEngine';
+import AppHeader from '../components/AppHeader';
+import QuizModeSelector from '../components/QuizModeSelector';
 import { db, auth } from '../firebase-config';
 import { doc, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
-import { safeGetItem, safeSetItem } from '../utils/storage';
+import { safeGetItem, safeSetJson } from '../utils/storage';
 import { useTheme } from '../hooks/useTheme';
-import { getMistakeWords, hasAnyMistakes, migrateAttempts, removeMistakeWord, refreshMistakesCache } from '../utils/mistakes';
+import { getMistakeWords, hasAnyMistakes, removeMistakeWord, refreshMistakesCache } from '../utils/mistakes';
+import { syncLevelProgressToLocal } from '../utils/levelProgress';
 
 const MyVoca = () => {
   const navigate = useNavigate();
@@ -25,7 +29,7 @@ const MyVoca = () => {
   const [loadedDataMap, setLoadedDataMap] = useState({});
   const [startTime, setStartTime] = useState(null); // 🎯 시작 시간 추적 추가
   
-  const themeColor = "#70011D";
+  const themeColor = BRAND_COLOR;
 
   // --- 모든 레벨 데이터 로드 + Firebase levelProgress 동기화 ---
   useEffect(() => {
@@ -34,6 +38,18 @@ const MyVoca = () => {
         const data = safeGetItem(LEVEL_CONFIG[levelId].key, {});
         return Object.values(data).some(d => d?.attempts && hasAnyMistakes(d.attempts));
       });
+
+    /** 다른 기기에서 푼 기록이 오답 목록에 빠지지 않도록 서버 진도를 먼저 내려받습니다. */
+    const syncMistakesFromCloud = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      try {
+        const snapshot = await getDoc(doc(db, 'users', user.email));
+        if (snapshot.exists()) syncLevelProgressToLocal(snapshot.data().levelProgress);
+      } catch (error) {
+        console.error('[MyVoca] Firebase sync 오류:', error);
+      }
+    };
 
     const loadAllData = async () => {
       const preSyncLevels = new Set(getLevelsWithMistakes());
@@ -50,41 +66,12 @@ const MyVoca = () => {
       };
 
       await Promise.all([
-        // Firebase sync
-        (async () => {
-          try {
-            const user = auth.currentUser;
-            if (user) {
-              const docSnap = await getDoc(doc(db, "users", user.email));
-              if (docSnap.exists()) {
-                const levelProgress = docSnap.data().levelProgress;
-                if (levelProgress) {
-                  Object.keys(levelProgress).forEach(levelKey => {
-                    const dbData = levelProgress[levelKey];
-                    if (!dbData) return;
-                    const localData = safeGetItem(levelKey, {});
-                    if ((dbData.lastUpdated || 0) >= (localData.lastUpdated || 0)) {
-                      const restored = JSON.parse(JSON.stringify(dbData));
-                      Object.keys(restored).forEach(dayKey => {
-                        if (dayKey === 'lastUpdated') return;
-                        const day = restored[dayKey];
-                        if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
-                      });
-                      safeSetItem(levelKey, JSON.stringify(restored));
-                    }
-                  });
-                }
-              }
-            }
-          } catch (e) {
-            console.error('[MyVoca] Firebase sync 오류:', e);
-          }
-        })(),
-        // Preload modules for levels already known to have mistakes
-        Promise.all([...preSyncLevels].map(loadModule))
+        syncMistakesFromCloud(),
+        // 이미 오답이 있는 걸 아는 레벨은 동기화를 기다리지 않고 먼저 받습니다.
+        Promise.all([...preSyncLevels].map(loadModule)),
       ]);
 
-      // After sync: load modules for any newly synced levels with mistakes
+      // 동기화로 새로 나타난 오답 레벨의 단어 데이터를 마저 받습니다.
       const postSyncLevels = getLevelsWithMistakes();
       await Promise.all(postSyncLevels.filter(id => !preSyncLevels.has(id)).map(loadModule));
 
@@ -147,17 +134,13 @@ const MyVoca = () => {
     });
 
     const allUniqueMistakes = Array.from(uniqueMistakeWordsMap.values());
-    return Object.keys(LEVEL_CONFIG).map(levelId => {
-      const config = LEVEL_CONFIG[levelId];
-      const wordsForThisLevel = allUniqueMistakes.filter(m => m.levelId === levelId);
-      return { 
-        key: config.key, 
-        label: config.subTitle,
-        words: wordsForThisLevel, 
-        levelId,
-        config: config 
-      };
-    });
+    return LEVEL_ENTRIES.map(([levelId, config]) => ({
+      key: config.key,
+      label: config.subTitle,
+      words: allUniqueMistakes.filter(mistake => mistake.levelId === levelId),
+      levelId,
+      config,
+    }));
   }, [loadedDataMap]);
 
   const [mistakesGroup, setMistakesGroup] = useState([]);
@@ -202,7 +185,7 @@ const MyVoca = () => {
       }
     });
     if (changed) {
-      safeSetItem(levelKey, JSON.stringify(savedData));
+      safeSetJson(levelKey, savedData);
       refreshMistakesCache();
     }
   };
@@ -211,27 +194,13 @@ const MyVoca = () => {
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] font-sans transition-colors duration-500 overflow-x-hidden">
       
       {/* --- 상단 헤더: 배경이 진한 와인색이므로 b.png 로고를 invert시켜 흰색 유지 --- */}
-      <header className="sticky top-0 z-20 flex flex-col transition-colors border-b border-black/10 shadow-sm" 
-              style={{ backgroundColor: themeColor, paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(70px + env(safe-area-inset-top))' }}>
-        <div className="flex-1 flex items-center px-4 justify-between w-full h-16">
-          <button onClick={() => view === 'list' ? navigate('/') : setView('list')} className="p-2 text-white active:opacity-70 rounded-full">
-            <i className="ph-bold ph-caret-left text-2xl"></i>
-          </button>
-          
-          {/* 로고: Araon_logo_b.png를 사용하고 invert 필터로 흰색 표현 */}
-          <img 
-            src={`${process.env.PUBLIC_URL}/Araon_logo_b.png`} 
-            alt="ARAON" 
-            className="h-7 mx-auto invert brightness-200" 
-          />
-          
-          <div className="flex items-center">
-            <button onClick={() => setIsDark(!isDark)} className="p-2 text-white active:scale-90 transition-transform">
-              <i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i>
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader
+        variant="brand"
+        backgroundColor={themeColor}
+        isDark={isDark}
+        onToggleTheme={setIsDark}
+        onBack={() => (view === 'list' ? navigate('/') : setView('list'))}
+      />
 
       <main className="flex-1 p-6 overflow-y-auto">
         {view === 'list' && (
@@ -330,19 +299,7 @@ const MyVoca = () => {
                 </select>
                 <i className="ph-bold ph-caret-down absolute right-4 top-1/2 -translate-y-1/2 text-zinc-300 pointer-events-none"></i>
             </div>
-            <div className="space-y-3">
-              {[
-                { id: 'choice', title: '4지선다형', color: 'bg-amber-100 text-amber-600', icon: 'ph-list-numbers' },
-                { id: 'letter', title: '철자 채우기', color: 'bg-blue-100 text-blue-600', icon: 'ph-textbox' },
-                { id: 'full', title: '전체 받아쓰기', color: 'bg-purple-100 text-purple-600', icon: 'ph-keyboard' }
-              ].map(m => (
-                <button key={m.id} onClick={() => startQuiz(m.id)} 
-                        className="w-full p-5 bg-white dark:bg-[#1E1E1E] rounded-2xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-5 shadow-sm active:scale-[0.98] transition-all text-left group hover:border-[#70011D]/30">
-                  <div className={`w-12 h-12 rounded-2xl ${m.color} flex items-center justify-center text-2xl shadow-inner`}><i className={`ph-fill ${m.icon}`}></i></div>
-                  <p className="font-bold dark:text-white text-base">{m.title}</p>
-                </button>
-              ))}
-            </div>
+            <QuizModeSelector onSelect={startQuiz} />
           </div>
         )}
 
@@ -388,9 +345,10 @@ const MyVoca = () => {
                   // 🎯 학습 시간 측정: 반올림하여 더 공정하게 기록
                   const duration = Math.max(1, Math.round((Date.now() - (startTime || (Date.now() - 60000))) / 60000));
 
-                  // DB에 저장할 레벨 키 변환 (예: araon_voca_level_1 -> level_1)
-                  const rawLevelId = selectedQuizLevelId === 'all' ? 'review' : selectedQuizLevelId;
-                  const dbLevelKey = rawLevelId.replace('araon_voca_', '').replace(/-/g, '_');
+                  // 전체 통합 복습은 특정 레벨에 속하지 않으므로 'review'로 집계합니다.
+                  const dbLevelKey = selectedQuizLevelId === 'all'
+                    ? 'review'
+                    : toDbLevelKey(toLevelId(selectedQuizLevelId));
 
                   const attendanceRecord = {
                     date: new Date().toISOString(),

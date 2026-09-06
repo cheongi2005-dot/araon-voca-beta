@@ -5,6 +5,8 @@ import { serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { getToken } from "firebase/messaging";
 import { useSyncSettings } from '../hooks/useSyncSettings';
 import { useTheme } from '../hooks/useTheme';
+import AppHeader from '../components/AppHeader';
+import ToggleSwitch from '../components/ToggleSwitch';
 
 const NotificationSettings = () => {
   const navigate = useNavigate();
@@ -107,13 +109,7 @@ const NotificationSettings = () => {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased relative overflow-hidden text-zinc-900 dark:text-white pb-10">
-      <header className="sticky top-0 z-30 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex items-center px-4 justify-between w-full h-16 flex-1">
-          <button onClick={() => navigate(-1)} className="p-2 dark:text-white active:opacity-70"><i className="ph-bold ph-caret-left text-2xl"></i></button>
-          <h1 className="text-sm font-black tracking-[0.2em] uppercase">Settings</h1>
-          <button onClick={() => setIsDark(!isDark)} className="p-2 dark:text-white"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
-        </div>
-      </header>
+      <AppHeader isDark={isDark} onToggleTheme={setIsDark} onBack={() => navigate(-1)} title="Settings" />
 
       <main className="flex-1 p-6">
         <div className="mb-10 px-2">
@@ -129,11 +125,11 @@ const NotificationSettings = () => {
             <div className="p-6 bg-white dark:bg-[#1E1E1E] rounded-[1.8rem] border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-5 transition-all">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4"><div className="w-11 h-11 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-2xl flex items-center justify-center"><i className="ph-fill ph-music-notes text-xl"></i></div><div><h3 className="text-sm font-black">퀴즈 효과음</h3><p className="text-[10px] text-zinc-400 font-medium">정답/오답 시 소리 재생</p></div></div>
-                <ToggleButton active={currentSettings.quizSound} onClick={() => toggleSetting('quizSound')} />
+                <ToggleSwitch active={currentSettings.quizSound} onClick={() => toggleSetting('quizSound')} />
               </div>
               <div className="flex items-center justify-between pt-5 border-t border-zinc-50 dark:border-zinc-800/50">
                 <div className="flex items-center gap-4"><div className="w-11 h-11 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-2xl flex items-center justify-center"><i className="ph-fill ph-paint-brush text-xl"></i></div><div><h3 className="text-sm font-black">이모지 힌트</h3><p className="text-[10px] text-zinc-400 font-medium">퀴즈 중 이미지 힌트 노출</p></div></div>
-                <ToggleButton active={currentSettings.quizEmoji} onClick={() => toggleSetting('quizEmoji')} />
+                <ToggleSwitch active={currentSettings.quizEmoji} onClick={() => toggleSetting('quizEmoji')} />
               </div>
             </div>
           </section>
@@ -145,7 +141,7 @@ const NotificationSettings = () => {
               <div className="p-6 bg-white dark:bg-[#1E1E1E] rounded-[1.8rem] border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-5 transition-all">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4"><div className="w-11 h-11 bg-blue-50 dark:bg-blue-900/30 text-blue-600 rounded-2xl flex items-center justify-center"><i className="ph-fill ph-trophy text-xl"></i></div><div><h3 className="text-sm font-black">랭킹 추월 알림</h3><p className="text-[10px] text-zinc-400 font-medium">경쟁자 변동 소식</p></div></div>
-                  <ToggleButton active={currentSettings.pushRanking} onClick={() => toggleSetting('pushRanking')} />
+                  <ToggleSwitch active={currentSettings.pushRanking} onClick={() => toggleSetting('pushRanking')} />
                 </div>
                 {currentSettings.pushRanking && (
                   <div className="pt-5 border-t border-zinc-50 dark:border-zinc-800/50 flex flex-wrap gap-2 animate__animated animate__fadeIn">
@@ -162,7 +158,7 @@ const NotificationSettings = () => {
               <div className="p-6 bg-white dark:bg-[#1E1E1E] rounded-[1.8rem] border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-5 transition-all">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4"><div className="w-11 h-11 bg-rose-50 dark:bg-rose-900/30 text-rose-600 rounded-2xl flex items-center justify-center"><i className="ph-fill ph-brain text-xl"></i></div><div><h3 className="text-sm font-black">오답 복습 알림</h3><p className="text-[10px] text-zinc-400 font-medium">잊기 전 틀린 단어 상기</p></div></div>
-                  <ToggleButton active={currentSettings.pushMistakes} onClick={() => toggleSetting('pushMistakes')} />
+                  <ToggleSwitch active={currentSettings.pushMistakes} onClick={() => toggleSetting('pushMistakes')} />
                 </div>
                 {currentSettings.pushMistakes && (
                   <div className="pt-5 border-t border-zinc-50 dark:border-zinc-800/50 flex flex-wrap gap-2 animate__animated animate__fadeIn">
@@ -179,7 +175,7 @@ const NotificationSettings = () => {
               <div className="p-6 bg-white dark:bg-[#1E1E1E] rounded-[1.8rem] border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4"><div className="w-11 h-11 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl flex items-center justify-center"><i className="ph-fill ph-fire text-xl"></i></div><div><h3 className="text-sm font-black">출석 유지 알림</h3><p className="text-[10px] text-zinc-400 font-medium">학습 스트릭 지키기</p></div></div>
-                  <ToggleButton active={currentSettings.pushStreak} onClick={() => toggleSetting('pushStreak')} />
+                  <ToggleSwitch active={currentSettings.pushStreak} onClick={() => toggleSetting('pushStreak')} />
                 </div>
                 {currentSettings.pushStreak && (
                   <button onClick={openPicker} className="w-full flex items-center justify-between pt-4 border-t border-zinc-50 dark:border-zinc-800/50 active:opacity-50 animate__animated animate__fadeIn">
@@ -228,11 +224,5 @@ const NotificationSettings = () => {
     </div>
   );
 };
-
-const ToggleButton = ({ active, onClick }) => (
-  <button onClick={onClick} className={`w-12 h-6 rounded-full relative flex items-center transition-all ${active ? 'bg-indigo-500' : 'bg-zinc-200 dark:bg-zinc-800'}`}>
-    <div className={`w-4 h-4 bg-white rounded-full shadow-sm absolute transition-all duration-300 ${active ? 'translate-x-6' : 'translate-x-0'}`} style={{ left: '4px' }} />
-  </button>
-);
 
 export default NotificationSettings;

@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db, auth } from '../firebase-config';
 import { collection, getDocs, query, limit, getCountFromServer } from "firebase/firestore";
-import { useNavigate } from 'react-router-dom';
-import { LEVEL_CONFIG } from '../config/levelConfig';
+import { LEVELS, LEVEL_ENTRIES, toDbLevelKey } from '../config/levelConfig';
 import LoadingScreen from '../components/LoadingScreen';
+import AppHeader from '../components/AppHeader';
 import { useTheme } from '../hooks/useTheme';
-import { getWeekBounds } from '../utils/dateUtils';
+import { STORAGE_KEYS } from '../config/storageKeys';
+import { readCache, writeCache } from '../utils/storage';
+import { getWeekBounds, parseDate } from '../utils/dateUtils';
+import { getCheeringMessage } from '../utils/messages';
 
 const RANKING_CACHE_TTL = 3 * 60 * 1000; // 3분 캐시
 
@@ -15,10 +18,9 @@ const RankingPage = () => {
   const [myRankInfo, setMyRankInfo] = useState(null);
   const [lastWeekTop3, setLastWeekTop3] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedLevel, setSelectedLevel] = useState(Object.values(LEVEL_CONFIG)[0].title);
+  const [selectedLevel, setSelectedLevel] = useState(LEVELS[0].title);
   const [isDark, setIsDark] = useTheme();
   const [totalUsers, setTotalUsers] = useState(0);
-  const navigate = useNavigate();
   // 한 번 가져온 전체 유저 데이터를 메모리에 보관 (탭 변경 시 재사용)
   const allUsersRef = useRef(null);
   const totalUsersRef = useRef(0);
@@ -28,18 +30,13 @@ const RankingPage = () => {
     // 메모리 캐시가 있으면 재사용
     if (allUsersRef.current) return allUsersRef.current;
 
-    // localStorage 캐시 확인 (3분 TTL)
-    try {
-      const cached = localStorage.getItem('araon_ranking_users');
-      const cachedAt = localStorage.getItem('araon_ranking_users_at');
-      if (cached && cachedAt && Date.now() - Number(cachedAt) < RANKING_CACHE_TTL) {
-        const parsed = JSON.parse(cached);
-        allUsersRef.current = parsed.users;
-        totalUsersRef.current = parsed.totalCount;
-        setTotalUsers(parsed.totalCount);
-        return parsed.users;
-      }
-    } catch (_) {}
+    const cached = readCache(STORAGE_KEYS.rankingUsers, STORAGE_KEYS.rankingUsersAt, RANKING_CACHE_TTL);
+    if (cached?.users) {
+      allUsersRef.current = cached.users;
+      totalUsersRef.current = cached.totalCount;
+      setTotalUsers(cached.totalCount);
+      return cached.users;
+    }
 
     // Firestore에서 가져오기
     const coll = collection(db, "users");
@@ -54,10 +51,7 @@ const RankingPage = () => {
     totalUsersRef.current = count;
     setTotalUsers(count);
 
-    try {
-      localStorage.setItem('araon_ranking_users', JSON.stringify({ users, totalCount: count }));
-      localStorage.setItem('araon_ranking_users_at', String(Date.now()));
-    } catch (_) {}
+    writeCache(STORAGE_KEYS.rankingUsers, STORAGE_KEYS.rankingUsersAt, { users, totalCount: count });
 
     return users;
   }, []);
@@ -68,8 +62,8 @@ const RankingPage = () => {
       const allUsers = await fetchAllUsers();
 
       const getLevelKeyByTitle = (title) => {
-        const entry = Object.entries(LEVEL_CONFIG).find(([k, v]) => v.title === title);
-        return entry ? entry[0].replace(/-/g, '_') : title.toLowerCase().replace(/\s+/g, '_'); 
+        const entry = LEVEL_ENTRIES.find(([, config]) => config.title === title);
+        return entry ? toDbLevelKey(entry[0]) : title.toLowerCase().replace(/\s+/g, '_');
       };
 
       const { startOfWeek, endOfWeek } = getWeekBounds(0);
@@ -80,19 +74,9 @@ const RankingPage = () => {
         let words = 0; let time = 0; let levelWords = 0;
         if (user.attendance && Array.isArray(user.attendance)) {
           user.attendance.forEach(act => {
-            if (!act || !act.date) return;
-            
-            // Firebase Timestamp 객체인지, 일반 문자열인지 검사해서 정확히 변환합니다.
-            let d;
-            if (typeof act.date?.toDate === 'function') {
-              d = act.date.toDate();
-            } else if (act.date?.seconds) {
-              d = new Date(act.date.seconds * 1000);
-            } else {
-              d = new Date(act.date);
-            }
+            const d = parseDate(act?.date);
+            if (!d) return;
 
-            // 정확하게 변환된 날짜로 지난주/이번주 필터링을 진행합니다.
             if (d >= start && d <= end) {
               const s = Number(act.score || 0);
               const t = Number(act.studyTime || 1);
@@ -166,16 +150,6 @@ const RankingPage = () => {
     if (tab === 'level') return '레벨 챔프';
     if (tab === 'passion') return '열정왕';
     return '전체 랭킹';
-  };
-
-  const getCheeringMessage = (rank) => {
-    if (!rank) return "오늘의 도전이 내일의 순위를 바꿔요! 🌱";
-    if (rank === 1) return "넘볼 수 없는 1위! 압도적이에요! 👑";
-    if (rank === 2) return "정상까지 단 한 걸음! 당신은 할 수 있어요! 🥈";
-    if (rank === 3) return "시상대에 올랐습니다! 훌륭해요! 🎖️";
-    if (rank <= 10) return "명예의 전당 TOP10! 이 기세 계속 가요! 🔥";
-    if (rank <= 30) return "한 계단씩 오르는 중! 멈추지 마요! 🚀";
-    return "오늘의 도전이 내일의 순위를 바꿔요! 🌱";
   };
 
   const getRankBadge = (lwRank, tab) => {
@@ -280,13 +254,7 @@ const RankingPage = () => {
       `}</style>
 
       <div className="max-w-md mx-auto">
-        <header className="sticky top-0 z-20 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-          <div className="flex-1 flex items-center px-4 justify-between w-full h-16">
-            <button onClick={() => navigate('/')} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className="ph-bold ph-caret-left text-2xl"></i></button>
-            <img src={isDark ? `${process.env.PUBLIC_URL}/Araon_logo_W.webp` : `${process.env.PUBLIC_URL}/Araon_logo.webp`} alt="ARAON" className="h-10 w-auto" />
-            <button onClick={() => setIsDark(!isDark)} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
-          </div>
-        </header>
+        <AppHeader isDark={isDark} onToggleTheme={setIsDark} backTo="/" />
 
         <div className="p-6">
           <div className="mb-6">
@@ -302,7 +270,7 @@ const RankingPage = () => {
           {activeTab === 'level' && (
             <div className="mb-6">
               <div className="grid grid-cols-3 gap-2">
-                {Object.values(LEVEL_CONFIG).map((lvl) => (
+                {LEVELS.map((lvl) => (
                   <button 
                     key={lvl.title} 
                     onClick={() => setSelectedLevel(lvl.title)} 

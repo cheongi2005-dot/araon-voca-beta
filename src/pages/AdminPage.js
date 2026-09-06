@@ -3,8 +3,11 @@ import { db, functions } from '../firebase-config';
 import { collection, query, getDocs, orderBy, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { httpsCallable } from 'firebase/functions';
 import { useNavigate } from 'react-router-dom';
-import { LEVEL_CONFIG } from '../config/levelConfig';
-import StudentReport from '../components/StudentReport'; 
+import { getCurrentLevelDisplay } from '../config/levelConfig';
+import { SESSION_KEYS } from '../config/storageKeys';
+import { formatPhoneNumber } from '../utils/activity';
+import { isStudentInquiry, sortInquiriesByNewest } from '../services/inquiries';
+import StudentReport from '../components/StudentReport';
 
 const AdminPage = () => {
   // --- STATE MANAGEMENT ---
@@ -26,7 +29,7 @@ const AdminPage = () => {
 
   useEffect(() => {
     isComponentMounted.current = true;
-    if (sessionStorage.getItem('isAdmin') === 'true') {
+    if (sessionStorage.getItem(SESSION_KEYS.isAdmin) === 'true') {
       setIsLoggedIn(true);
       fetchAllData();
     }
@@ -44,7 +47,7 @@ const AdminPage = () => {
       
       if (isComponentMounted.current) {
         setStudents(studentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        setInquiries(inquirySnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setInquiries(sortInquiriesByNewest(inquirySnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
       }
     } catch (error) { 
       console.error("데이터 로드 오류:", error); 
@@ -101,7 +104,7 @@ const AdminPage = () => {
       return;
     }
     if (adminCode === ACCESS_CODE) {
-      sessionStorage.setItem('isAdmin', 'true');
+      sessionStorage.setItem(SESSION_KEYS.isAdmin, 'true');
       setIsLoggedIn(true);
       await fetchAllData();
     } else { alert("코드 불일치"); }
@@ -109,27 +112,15 @@ const AdminPage = () => {
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('isAdmin');
+    sessionStorage.removeItem(SESSION_KEYS.isAdmin);
     setIsLoggedIn(false);
     navigate('/');
   };
 
-  const formatPhoneNumber = (num) => {
-    if (!num) return "";
-    const clean = ('' + num).replace(/\D/g, '');
-    const match = clean.match(/^(\d{3})(\d{3,4})(\d{4})$/); 
-    return match ? `${match[1]}-${match[2]}-${match[3]}` : num;
-  };
-
-  const getCurrentLevelDisplay = (levelName) => {
-    const found = Object.values(LEVEL_CONFIG).find(l => l.title === levelName || l.name === levelName);
-    return found ? found.subTitle : (levelName || 'Level 미정');
-  };
-
-  // 🎯 문의 필터링 로직
-  const parentInquiries = inquiries.filter(iq => iq.userType !== 'student');
-  const studentInquiries = inquiries.filter(iq => iq.userType === 'student');
-  const getUnrepliedCount = (list) => list.filter(iq => !iq.adminReply).length;
+  // 레거시 문의에는 userType 필드가 없어서, 학생 문의가 아닌 것을 학부모 문의로 봅니다.
+  const parentInquiries = inquiries.filter(inquiry => !isStudentInquiry(inquiry));
+  const studentInquiries = inquiries.filter(isStudentInquiry);
+  const getUnrepliedCount = (list) => list.filter(inquiry => !inquiry.adminReply).length;
 
   const containerStyle = { position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 999999, backgroundColor: '#F8F9FA', overflowY: 'auto' };
 
@@ -231,8 +222,8 @@ const AdminPage = () => {
                           <div className="flex justify-between items-start mb-5">
                             <div>
                               <div className="flex items-center gap-2 mb-1">
-                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${iq.userType === 'student' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
-                                  {iq.category || (iq.userType === 'student' ? '학생 문의' : '학부모 문의')}
+                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${isStudentInquiry(iq) ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                                  {iq.category || (isStudentInquiry(iq) ? '학생 문의' : '학부모 문의')}
                                 </span>
                                 <h4 className="font-black text-slate-800 text-lg">{iq.studentName}</h4>
                               </div>

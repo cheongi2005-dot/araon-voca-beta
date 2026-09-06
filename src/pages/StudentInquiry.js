@@ -2,43 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase-config';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import {
+  INQUIRY_CATEGORIES,
+  INQUIRY_TARGET_EMAIL,
+  INQUIRY_USER_TYPE,
+  isStudentInquiry,
+  sortInquiriesByNewest,
+} from '../services/inquiries';
+import { FAQ_GROUPS } from '../data/faq';
 
 const StudentInquiry = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('new'); // 'new' | 'history'
-  const [category, setCategory] = useState("학습 오류");
+  const [category, setCategory] = useState(INQUIRY_CATEGORIES[0]);
   const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [myInquiries, setMyInquiries] = useState([]);
   const [studentInfo, setStudentInfo] = useState(null);
-
-  const categories = ["학습 오류", "시스템 버그", "기능 건의", "기타 질문"];
-
-  const faqGroups = [
-    {
-      category: "📘 1. 학습 진행 및 방법 (Learning)",
-      items: [
-        { q: "나에게 맞는 레벨은 어떻게 선택하나요?", a: "현재 자신의 학교 학년이나 평소 영어 실력에 맞춰 선택해 주세요. [레벨 변경] 메뉴에서 언제든지 조정 가능하지만, 기초부터 차근차근 밟아가는 것이 가장 효과적입니다." },
-        { q: "하루에 몇 개의 단어를 학습하는 것이 좋은가요?", a: "'Day' 하나당 약 20~30개의 단어로 구성되어 있습니다. 매일 최소 1개의 Day를 완벽히 마스터하는 것을 목표로 설정해 보세요." },
-        { q: "오답노트 기능은 어떻게 활용하나요?", a: "퀴즈에서 틀린 단어는 자동으로 [오답노트]에 저장됩니다. 나의 단어장에서 퀴즈를 통해 해당 단어를 맞히면 목록에서 자동으로 사라지며 완벽히 외운 것으로 간주합니다." }
-      ]
-    },
-    {
-      category: "🛠️ 2. 기술적인 문제 해결 (Technical)",
-      items: [
-        { q: "단어 발음 소리가 들리지 않아요.", a: "1) 기기의 무음 모드(매너 모드)를 해제해 주세요. 2) 설정 메뉴에서 [음성(Voice) 설정]이 제대로 되어 있는지 확인해 주세요. 3) 브라우저의 소리 권한이 차단되어 있는지 체크해 보세요." },
-        { q: "학습 완료를 했는데 체크 표시가 안 떠요.", a: "퀴즈를 마지막 문제까지 풀고 '결과 화면'을 확인해야 학습 데이터가 저장됩니다. 퀴즈 도중 창을 닫으면 완료 처리가 되지 않으니 주의해 주세요." },
-        { q: "집 컴퓨터에서 하던 공부를 밖에서 폰으로 이어서 할 수 있나요?", a: "네, 계정 기반으로 동기화되므로 로그인을 하시면 장소에 상관없이 학습 진행 상황(진도, 오답노트 등)을 이어서 하실 수 있습니다." }
-      ]
-    },
-    {
-      category: "🏆 3. 동기부여 및 랭킹 (Ranking)",
-      items: [
-        { q: "주간 랭킹은 언제 초기화되나요?", a: "랭킹은 매주 월요일 새벽에 초기화됩니다. 한 주 동안 가장 열심히 공부한 학생들의 순위를 확인해 보세요!" },
-        { q: "포인트를 모으면 무엇을 할 수 있나요?", a: "학습 포인트는 랭킹 산정의 기준이 되며, 추후 포인트로 이용할 수 있는 다양한 리워드 시스템이 업데이트될 예정입니다." }
-      ]
-    }
-  ];
 
   // 1. 현재 사용자 정보 로드
   useEffect(() => {
@@ -61,15 +41,9 @@ const StudentInquiry = () => {
     const q = query(collection(db, "inquiries"), where("studentPhone", "==", studentInfo.phone));
     
     const unsubscribe = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // 최신순 정렬
-      data.sort((a, b) => {
-        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-        return timeB - timeA;
-      });
-      // 본인이 남긴 문의만 필터링 (학부모 문의와 혼동 방지)
-      setMyInquiries(data.filter(iq => iq.userType === 'student'));
+      const data = sortInquiriesByNewest(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      // 같은 번호로 등록된 학부모 문의가 섞이지 않도록 학생 문의만 남깁니다.
+      setMyInquiries(data.filter(isStudentInquiry));
     });
 
     return () => unsubscribe();
@@ -84,10 +58,10 @@ const StudentInquiry = () => {
       await addDoc(collection(db, "inquiries"), {
         studentName: studentInfo?.name || "학생",
         studentPhone: studentInfo?.phone || "알수없음",
-        userType: "student", // 🌟 학부모와 구분
-        category: category,
-        content: content,
-        targetEmail: "di4377491@gmail.com",
+        userType: INQUIRY_USER_TYPE.student,
+        category,
+        content,
+        targetEmail: INQUIRY_TARGET_EMAIL,
         createdAt: serverTimestamp(),
       });
       alert("문의가 접수되었습니다. 선생님이 확인 후 답변해 드립니다.");
@@ -143,7 +117,7 @@ const StudentInquiry = () => {
             <section className="space-y-6">
               <h3 className="text-xs font-black text-indigo-500 mb-1 flex items-center gap-1"><i className="ph-fill ph-info"></i> 자주 묻는 질문</h3>
               
-              {faqGroups.map((group, groupIdx) => (
+              {FAQ_GROUPS.map((group, groupIdx) => (
                 <div key={groupIdx} className="space-y-3">
                   <h4 className="text-[11px] font-black text-slate-400 dark:text-zinc-500 px-1 uppercase tracking-tighter">{group.category}</h4>
                   <div className="space-y-2">
@@ -168,7 +142,7 @@ const StudentInquiry = () => {
               <h3 className="text-sm font-black text-slate-800 dark:text-white mb-4">선생님께 직접 문의하기</h3>
               
               <div className="flex flex-wrap gap-2 mb-4">
-                {categories.map(cat => (
+                {INQUIRY_CATEGORIES.map(cat => (
                   <button
                     key={cat}
                     onClick={() => setCategory(cat)}

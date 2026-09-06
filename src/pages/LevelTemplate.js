@@ -3,14 +3,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase-config';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, onSnapshot, serverTimestamp, increment, arrayUnion } from "firebase/firestore";
-import { LEVEL_CONFIG } from '../config/levelConfig';
+import { LEVEL_CONFIG, toDbLevelKey } from '../config/levelConfig';
+import { ACTIVITY_TYPE } from '../config/theme';
 import { useStorage } from '../hooks/useStorage';
 import { useSpeech } from '../hooks/useSpeech';
 import QuizEngine from '../components/QuizEngine';
 import LoadingScreen from '../components/LoadingScreen';
+import AppHeader from '../components/AppHeader';
+import QuizModeSelector from '../components/QuizModeSelector';
 import { useTheme } from '../hooks/useTheme';
-import { safeGetItem, safeSetItem } from '../utils/storage';
-import { migrateAttempts, getMistakeWords } from '../utils/mistakes';
+import { safeGetItem, safeSetJson } from '../utils/storage';
+import { getMistakeWords } from '../utils/mistakes';
+import { backfillFromAttendance, mergeLevelData } from '../utils/levelProgress';
 
 const LevelTemplate = () => {
   const { levelId: rawLevelId } = useParams();
@@ -66,42 +70,11 @@ const LevelTemplate = () => {
             setIsSyncLoading(false); // 로딩 화면 즉시 해제
 
             if (config?.key) {
-              setTimeout(() => { // 데이터 병합은 화면 렌더 후에 처리
-                const dbLevelData = userData.levelProgress?.[config.key] || {};
-                const localLevelData = safeGetItem(config.key, {});
-
-                const dbTime = dbLevelData.lastUpdated || 0;
-                const localTime = localLevelData.lastUpdated || 0;
-                const rawData = Object.keys(dbLevelData).length > 0
-                  ? (dbTime >= localTime ? dbLevelData : localLevelData)
-                  : localLevelData;
-
-                const finalData = JSON.parse(JSON.stringify(rawData));
-                Object.keys(finalData).forEach(dayKey => {
-                  if (dayKey === 'lastUpdated') return;
-                  const day = finalData[dayKey];
-                  if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
-                });
-
-                const hasCompletedDays = Object.keys(finalData).some(k => k !== 'lastUpdated' && finalData[k]?.completed);
-                if (!hasCompletedDays && Array.isArray(userData.attendance)) {
-                  userData.attendance.forEach(record => {
-                    if (typeof record === 'string' || !record.day) return;
-                    if (!String(record.type || '').includes('문제풀이')) return;
-                    if (String(record.levelId || '').toLowerCase() !== levelId.toLowerCase()) return;
-                    const day = String(record.day);
-                    if (!finalData[day]) finalData[day] = {};
-                    finalData[day].completed = true;
-                    const s = Number(record.score || 0);
-                    finalData[day].bestScore = Math.max(finalData[day].bestScore || 0, s);
-                    if (record.method) {
-                      if (!finalData[day].scores) finalData[day].scores = {};
-                      finalData[day].scores[record.method] = Math.max(finalData[day].scores[record.method] || 0, s);
-                    }
-                  });
-                }
-
-                safeSetItem(config.key, JSON.stringify(finalData));
+              // 데이터 병합은 첫 렌더를 막지 않도록 다음 틱에 처리합니다.
+              setTimeout(() => {
+                const merged = mergeLevelData(userData.levelProgress?.[config.key], safeGetItem(config.key, {}));
+                const finalData = backfillFromAttendance(merged, userData.attendance, levelId);
+                safeSetJson(config.key, finalData);
                 setDayHistory(finalData);
               }, 0);
             }
@@ -183,10 +156,10 @@ const LevelTemplate = () => {
     const effectiveStartTime = startTime || (Date.now() - 60000); 
     const duration = Math.max(1, Math.round((Date.now() - effectiveStartTime) / 60000));
     const user = auth.currentUser;
-    const activityLabel = type === 'quiz' ? "문제풀이" : "단어학습";
+    const activityLabel = type === 'quiz' ? ACTIVITY_TYPE.quiz : ACTIVITY_TYPE.study;
     const numericScore = Number(score || 0);
     const numericImprovement = Number(improvement || 0);
-    const levelKey = levelId.replace(/-/g, '_');
+    const levelKey = toDbLevelKey(levelId);
 
     try {
       const userRef = doc(db, "users", user.email);
@@ -240,13 +213,13 @@ const LevelTemplate = () => {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
-      <header className="sticky top-0 z-20 flex flex-col border-b border-black/10 shadow-sm transition-colors" style={{ backgroundColor: config.color, paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex-1 flex items-center px-4 justify-between w-full h-16">
-          <button onClick={() => view === 'home' ? navigate('/') : setView(view === 'quiz' ? 'modeSelect' : 'home')} className="p-2 text-white"><i className="ph-bold ph-caret-left text-2xl"></i></button>
-          <img src={`${process.env.PUBLIC_URL}/Araon_logo_b.png`} alt="ARAON" className="h-7 mx-auto invert brightness-200" />
-          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 text-white"><i className={`ph-bold ${isDarkMode ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
-        </div>
-      </header>
+      <AppHeader
+        variant="brand"
+        backgroundColor={config.color}
+        isDark={isDarkMode}
+        onToggleTheme={setIsDarkMode}
+        onBack={() => (view === 'home' ? navigate('/') : setView(view === 'quiz' ? 'modeSelect' : 'home'))}
+      />
 
       <main className="flex-1 p-6 overflow-y-auto">
         {view === 'home' && (
@@ -344,14 +317,21 @@ const LevelTemplate = () => {
         {view === 'modeSelect' && (
           <div className="animate__animated animate__fadeInUp pt-6 space-y-6">
             <div className="text-center"><h2 className="text-xl font-black dark:text-white">퀴즈 모드 선택</h2><p className="text-zinc-400 text-sm mt-1">원하는 스타일로 복습하세요</p></div>
-            <div className="space-y-3">
-              {[ { id: 'choice', title: '4지선다형', icon: 'ph-list-numbers', color: 'bg-amber-100 text-amber-600' }, { id: 'letter', title: '철자 채우기', icon: 'ph-textbox', color: 'bg-blue-100 text-blue-600' }, { id: 'full', title: '전체 받아쓰기', icon: 'ph-keyboard', color: 'bg-purple-100 text-purple-600' } ].map(m => (
-                <button key={m.id} onClick={() => { setShuffledQuestions([...currentDayData].sort(() => Math.random() - 0.5)); setQuizMode(m.id); setView('quiz'); }} className="w-full p-5 bg-white dark:bg-[#1E1E1E] rounded-2xl border flex items-center justify-between shadow-sm">
-                  <div className="flex items-center gap-5"><div className={`w-12 h-12 rounded-2xl ${m.color} flex items-center justify-center text-2xl`}><i className={`ph-fill ${m.icon}`}></i></div><p className="font-bold dark:text-white">{m.title}</p></div>
-                  <div className="text-right"><p className="text-[8px] font-black text-zinc-300 uppercase">Best</p><span className="text-xs font-black text-zinc-400">{dayHistory[selectedDay]?.scores?.[m.id] || 0}/{currentDayData.length}</span></div>
-                </button>
-              ))}
-            </div>
+            <QuizModeSelector
+              onSelect={(modeId) => {
+                setShuffledQuestions([...currentDayData].sort(() => Math.random() - 0.5));
+                setQuizMode(modeId);
+                setView('quiz');
+              }}
+              renderMeta={(mode) => (
+                <div className="text-right">
+                  <p className="text-[8px] font-black text-zinc-300 uppercase">Best</p>
+                  <span className="text-xs font-black text-zinc-400">
+                    {dayHistory[selectedDay]?.scores?.[mode.id] || 0}/{currentDayData.length}
+                  </span>
+                </div>
+              )}
+            />
           </div>
         )}
 

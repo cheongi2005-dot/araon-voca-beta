@@ -1,199 +1,140 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { app } from '../firebase-config';
-import { safeGetItem } from '../utils/storage';
+import { STORAGE_KEYS } from '../config/storageKeys';
+import { safeGetItem, safeSetJson } from '../utils/storage';
+import {
+  getSessionAudio,
+  hasSessionAudio,
+  idbGet,
+  base64ToObjectURL,
+  isFetching,
+  putSessionAudio,
+  resolveAudioUrl,
+} from '../utils/audioCache';
 
-// 세션 캐시 (ObjectURL, 탭 닫으면 사라짐)
-const audioCache = new Map();
-const AUDIO_CACHE_MAX = 100;
+const FUNCTIONS_REGION = 'asia-northeast3';
+const TTS_TIMEOUT_MS = 30000;
+/** 미리 받기는 동시 요청 수를 제한해 학습 중 네트워크를 독점하지 않게 합니다. */
+const PREFETCH_CONCURRENCY = 3;
 
-// 중복 요청 방지 (같은 단어 동시 요청 시 하나만 실행)
-const inFlightCache = new Map();
+const DEFAULT_VOICE_CONFIG = { rate: 0.9, volume: 1.0 };
+/** 브라우저 TTS 목소리 선호 순위 — 위쪽일수록 원어민에 가깝습니다. */
+const PREFERRED_VOICE_KEYWORDS = ['Google US English', 'English United States', 'en-US'];
 
-// ── IndexedDB 영구 캐시 ──────────────────────────────────────
-const DB_NAME = 'araon_tts_cache';
-const STORE_NAME = 'audio';
-let dbPromise = null;
-
-const openDB = () => {
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = (e) => e.target.result.createObjectStore(STORE_NAME);
-    req.onsuccess = (e) => resolve(e.target.result);
-    req.onerror = () => { dbPromise = null; reject(req.error); };
-  });
-  return dbPromise;
+const pickBrowserVoice = (voices, savedVoiceName) => {
+  const saved = voices.find(voice => voice.name === savedVoiceName);
+  if (saved) return saved;
+  for (const keyword of PREFERRED_VOICE_KEYWORDS) {
+    const matched = voices.find(voice => voice.name.includes(keyword));
+    if (matched) return matched;
+  }
+  return voices.find(voice => voice.lang.startsWith('en')) || null;
 };
 
-const idbGet = async (key) => {
-  try {
-    const db = await openDB();
-    return new Promise((resolve) => {
-      const req = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(key);
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => resolve(null);
-    });
-  } catch { return null; }
-};
-
-const idbSet = async (key, value) => {
-  try {
-    const db = await openDB();
-    await new Promise((resolve) => {
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(value, key);
-      tx.oncomplete = resolve;
-      tx.onerror = resolve;
-    });
-  } catch {}
-};
-
-const base64ToObjectURL = (base64) => {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }));
-};
-// ────────────────────────────────────────────────────────────
-
+/**
+ * 단어 발음 재생.
+ *
+ * AI 음성(ElevenLabs)은 Cloud Function을 거쳐 받아오고 두 단계로 캐시합니다.
+ * 캐시가 비었을 때는 기다리게 하지 않고 브라우저 TTS로 즉시 재생한 뒤,
+ * 백그라운드에서 AI 음성을 받아 다음 재생부터 쓰도록 합니다.
+ */
 export const useSpeech = () => {
   const [muted, setMuted] = useState(false);
   const [voices, setVoices] = useState([]);
   const ttsFnRef = useRef(null);
 
-  const [voiceConfig, setVoiceConfig] = useState(() => {
-    const saved = localStorage.getItem('araon_voca_voice_config');
-    return saved ? JSON.parse(saved) : { rate: 0.9, volume: 1.0 };
-  });
+  const [voiceConfig, setVoiceConfig] = useState(
+    () => safeGetItem(STORAGE_KEYS.voiceConfig, null) || DEFAULT_VOICE_CONFIG
+  );
 
   useEffect(() => {
     const loadVoices = () => {
-      setVoices(window.speechSynthesis.getVoices().filter(v => v.lang.startsWith('en')));
+      setVoices(window.speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en')));
     };
     loadVoices();
+    // 크롬은 목소리 목록을 비동기로 채우므로 이벤트로 한 번 더 받습니다.
     window.speechSynthesis.onvoiceschanged = loadVoices;
+    return () => { window.speechSynthesis.onvoiceschanged = null; };
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('araon_voca_voice_config', JSON.stringify(voiceConfig));
+    safeSetJson(STORAGE_KEYS.voiceConfig, voiceConfig);
   }, [voiceConfig]);
-
-  const findBestChromeVoice = (availableVoices) => {
-    for (const keyword of ["Google US English", "English United States", "en-US"]) {
-      const voice = availableVoices.find(v => v.name.includes(keyword));
-      if (voice) return voice;
-    }
-    return availableVoices.find(v => v.lang.startsWith('en')) || null;
-  };
 
   const playBrowserTTS = useCallback((text, savedVoiceName) => {
-    const msg = new SpeechSynthesisUtterance(text);
-    const availableVoices = window.speechSynthesis.getVoices();
-    const targetVoice =
-      availableVoices.find(v => v.name === savedVoiceName) ||
-      findBestChromeVoice(availableVoices);
-    if (targetVoice) msg.voice = targetVoice;
-    msg.lang = 'en-US';
-    msg.rate = voiceConfig.rate;
-    msg.volume = voiceConfig.volume;
-    window.speechSynthesis.speak(msg);
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voice = pickBrowserVoice(window.speechSynthesis.getVoices(), savedVoiceName);
+    if (voice) utterance.voice = voice;
+    utterance.lang = 'en-US';
+    utterance.rate = voiceConfig.rate;
+    utterance.volume = voiceConfig.volume;
+    window.speechSynthesis.speak(utterance);
   }, [voiceConfig]);
 
+  /** Cloud Functions SDK는 무거우므로 실제로 필요할 때 한 번만 불러옵니다. */
   const ensureTtsFn = useCallback(async () => {
     if (!ttsFnRef.current) {
       const { getFunctions, httpsCallable } = await import('firebase/functions');
-      const functions = getFunctions(app, 'asia-northeast3');
-      ttsFnRef.current = httpsCallable(functions, 'tts', { timeout: 30000 });
+      const functions = getFunctions(app, FUNCTIONS_REGION);
+      ttsFnRef.current = httpsCallable(functions, 'tts', { timeout: TTS_TIMEOUT_MS });
     }
     return ttsFnRef.current;
   }, []);
 
-  // 단어 하나를 캐시에 저장 (세션 + IndexedDB)
-  const fetchAndCacheAI = useCallback(async (text) => {
-    if (audioCache.has(text)) return audioCache.get(text);
-    if (inFlightCache.has(text)) return inFlightCache.get(text);
+  const fetchAndCacheAI = useCallback((text) => resolveAudioUrl(text, async (word) => {
+    const ttsFn = await ensureTtsFn();
+    const result = await ttsFn({ text: word });
+    return result.data.audio;
+  }), [ensureTtsFn]);
 
-    const promise = (async () => {
-      // IndexedDB 먼저 확인 (네트워크 불필요)
-      const cached = await idbGet(text);
-      if (cached) {
-        const url = base64ToObjectURL(cached);
-        audioCache.set(text, url);
-        inFlightCache.delete(text);
-        return url;
-      }
-
-      // ElevenLabs Cloud Function 호출
-      const ttsFn = await ensureTtsFn();
-      const result = await ttsFn({ text });
-      const base64Audio = result.data.audio;
-
-      await idbSet(text, base64Audio);
-
-      const url = base64ToObjectURL(base64Audio);
-      if (audioCache.size >= AUDIO_CACHE_MAX) {
-        const firstKey = audioCache.keys().next().value;
-        URL.revokeObjectURL(audioCache.get(firstKey));
-        audioCache.delete(firstKey);
-      }
-      audioCache.set(text, url);
-      inFlightCache.delete(text);
-      return url;
-    })();
-
-    inFlightCache.set(text, promise);
-    return promise;
-  }, [ensureTtsFn]);
+  const playUrl = useCallback(async (url) => {
+    const audio = new Audio(url);
+    audio.volume = voiceConfig.volume;
+    audio.playbackRate = voiceConfig.rate;
+    await audio.play();
+  }, [voiceConfig]);
 
   const speak = useCallback(async (text) => {
     if (muted) return;
     window.speechSynthesis.cancel();
 
-    const useAI = safeGetItem('araon_voca_use_ai', true);
-    const savedVoiceName = localStorage.getItem('araon_voca_voice_name');
+    const useAI = safeGetItem(STORAGE_KEYS.useAiVoice, true);
+    const savedVoiceName = localStorage.getItem(STORAGE_KEYS.voiceName);
 
-    if (useAI) {
-      // 1순위: 세션 캐시 (즉시 재생)
-      if (audioCache.has(text)) {
-        const audio = new Audio(audioCache.get(text));
-        audio.volume = voiceConfig.volume;
-        audio.playbackRate = voiceConfig.rate;
-        await audio.play();
-        return;
-      }
-
-      // 2순위: IndexedDB 캐시 (로컬 읽기, ~수십ms)
-      const cached = await idbGet(text);
-      if (cached) {
-        const url = base64ToObjectURL(cached);
-        audioCache.set(text, url);
-        const audio = new Audio(url);
-        audio.volume = voiceConfig.volume;
-        audio.playbackRate = voiceConfig.rate;
-        await audio.play();
-        return;
-      }
-
-      // 3순위: 캐시 없음 → 브라우저 TTS 즉시 재생 + 백그라운드 AI 캐시
+    if (!useAI) {
       playBrowserTTS(text, savedVoiceName);
-      fetchAndCacheAI(text).catch(() => {});
       return;
     }
 
+    // 1순위: 세션 캐시 — 지연 없이 재생됩니다.
+    if (hasSessionAudio(text)) {
+      await playUrl(getSessionAudio(text));
+      return;
+    }
+
+    // 2순위: IndexedDB — 로컬 읽기라 수십 ms면 충분합니다.
+    const cached = await idbGet(text);
+    if (cached) {
+      const url = base64ToObjectURL(cached);
+      putSessionAudio(text, url);
+      await playUrl(url);
+      return;
+    }
+
+    // 3순위: 캐시 미스 — 기다리게 하지 않고 브라우저 TTS로 먼저 들려주고,
+    // AI 음성은 뒤에서 받아 다음 재생부터 사용합니다.
     playBrowserTTS(text, savedVoiceName);
-  }, [muted, voiceConfig, playBrowserTTS, fetchAndCacheAI]);
+    fetchAndCacheAI(text).catch(() => {});
+  }, [muted, playBrowserTTS, playUrl, fetchAndCacheAI]);
 
-  // Day 선택 시 해당 day 단어 전체를 백그라운드에서 미리 캐시
+  /** Day를 열 때 그 날의 단어를 미리 받아둬 학습 중 지연을 없앱니다. */
   const prefetchWords = useCallback(async (words) => {
-    const useAI = safeGetItem('araon_voca_use_ai', true);
-    if (!useAI) return;
+    if (!safeGetItem(STORAGE_KEYS.useAiVoice, true)) return;
 
-    const toFetch = words.filter(w => !audioCache.has(w) && !inFlightCache.has(w));
-    const CONCURRENCY = 3;
-
-    for (let i = 0; i < toFetch.length; i += CONCURRENCY) {
+    const pending = words.filter(word => !hasSessionAudio(word) && !isFetching(word));
+    for (let i = 0; i < pending.length; i += PREFETCH_CONCURRENCY) {
       await Promise.allSettled(
-        toFetch.slice(i, i + CONCURRENCY).map(w => fetchAndCacheAI(w))
+        pending.slice(i, i + PREFETCH_CONCURRENCY).map(word => fetchAndCacheAI(word))
       );
     }
   }, [fetchAndCacheAI]);

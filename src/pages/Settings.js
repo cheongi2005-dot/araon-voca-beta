@@ -4,8 +4,11 @@ import { auth, db } from '../firebase-config';
 import { signOut, deleteUser, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { useSpeech } from '../hooks/useSpeech';
-import { safeGetItem } from '../utils/storage';
+import { safeGetItem, safeRemoveItem, safeSetItem } from '../utils/storage';
+import { STORAGE_KEYS } from '../config/storageKeys';
 import { useTheme } from '../hooks/useTheme';
+import AppHeader from '../components/AppHeader';
+import ToggleSwitch from '../components/ToggleSwitch';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -16,27 +19,21 @@ const Settings = () => {
   const { voices, voiceConfig, setVoiceConfig } = useSpeech();
   
   const [selectedVoiceIndex, setSelectedVoiceIndex] = useState(() => {
-    const name = localStorage.getItem('araon_voca_voice_name');
-    const idx = voices.findIndex(v => v.name === name);
-    return idx === -1 ? 0 : idx;
+    const savedName = localStorage.getItem(STORAGE_KEYS.voiceName);
+    const index = voices.findIndex(voice => voice.name === savedName);
+    return index === -1 ? 0 : index;
   });
-  const [useAI, setUseAI] = useState(() => safeGetItem('araon_voca_use_ai', true));
+  const [useAI, setUseAI] = useState(() => safeGetItem(STORAGE_KEYS.useAiVoice, true));
   const [showVoicePicker, setShowVoicePicker] = useState(false);
   
   const [showPrivacyManager, setShowPrivacyManager] = useState(false);
   const [privacyLoading, setPrivacyLoading] = useState(false);
 
-  // 캐시에서 읽기 — name/phone은 캐시에 없으므로 패널 열 때만 fetch
-  const [studentInfo, setStudentInfo] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('araon_cached_user') || 'null');
-    } catch (e) {
-      return null;
-    }
-  });
+  // 개인정보(name/phone)는 캐시에 저장하지 않으므로 패널을 열 때만 서버에서 받아옵니다.
+  const [studentInfo, setStudentInfo] = useState(() => safeGetItem(STORAGE_KEYS.cachedUser, null));
 
   useEffect(() => {
-    localStorage.setItem('araon_voca_use_ai', JSON.stringify(useAI));
+    safeSetItem(STORAGE_KEYS.useAiVoice, JSON.stringify(useAI));
   }, [useAI]);
 
   // 로그아웃 감지만 — Firebase 패치 없음
@@ -73,7 +70,7 @@ const Settings = () => {
     setModal(null);
     setIsSigningOut(true);
     try {
-      localStorage.removeItem('araon_cached_user');
+      safeRemoveItem(STORAGE_KEYS.cachedUser);
       await signOut(auth);
       navigate('/');
     } catch (error) {
@@ -111,13 +108,7 @@ const Settings = () => {
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
       
-      <header className="sticky top-0 z-20 flex flex-col bg-white/80 dark:bg-[#1E1E1E]/80 backdrop-blur-md border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex items-center justify-between w-full flex-1 px-6 h-16">
-          <button onClick={() => navigate('/')} className="p-2 text-black dark:text-white active:opacity-70 rounded-full"><i className="ph-bold ph-caret-left text-2xl"></i></button>
-          <img src={isDark ? `${process.env.PUBLIC_URL}/Araon_logo_W.webp` : `${process.env.PUBLIC_URL}/Araon_logo.webp`} alt="ARAON" className="h-10 w-auto" />
-          <button onClick={() => setIsDark(!isDark)} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
-        </div>
-      </header>
+      <AppHeader isDark={isDark} onToggleTheme={setIsDark} backTo="/" />
 
       <main className="flex-1 p-6 space-y-3">
         <h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 tracking-tight px-2 mb-4 uppercase">Settings</h2>
@@ -236,12 +227,7 @@ const Settings = () => {
                   <h4 className="text-sm font-black text-indigo-600 dark:text-indigo-400">AI 프리미엄 음성</h4>
                   <p className="text-[10px] text-indigo-400">ElevenLabs의 최고급 AI 발음</p>
                 </div>
-                <button 
-                  onClick={() => setUseAI(!useAI)}
-                  className={`w-12 h-6 rounded-full relative transition-all ${useAI ? 'bg-indigo-500' : 'bg-zinc-300 dark:bg-zinc-700'}`}
-                >
-                  <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${useAI ? 'right-1' : 'left-1'}`} />
-                </button>
+                <ToggleSwitch active={useAI} onClick={() => setUseAI(!useAI)} label="AI 프리미엄 음성" />
               </div>
 
               {/* 🎯 음성 속도 및 볼륨 설정 */}
@@ -277,7 +263,7 @@ const Settings = () => {
                 {voices.map((v, i) => (
                   <button key={i} onClick={() => { 
                     setSelectedVoiceIndex(i); 
-                    localStorage.setItem('araon_voca_voice_name', v.name); 
+                    localStorage.setItem(STORAGE_KEYS.voiceName, v.name); 
                     setUseAI(false); 
                     setShowVoicePicker(false); 
                   }} className={`w-full p-4 rounded-2xl text-left transition-all ${!useAI && selectedVoiceIndex === i ? 'bg-indigo-500 text-white font-black' : 'bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 font-bold'}`}>

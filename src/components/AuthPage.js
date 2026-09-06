@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { auth, db } from '../firebase-config';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { safeGetItem } from '../utils/storage';
+import { safeGetItem, safeRemoveItem, safeSetJson } from '../utils/storage';
+import { STORAGE_KEYS } from '../config/storageKeys';
 
 const maskEmail = (email) => {
   const [local, domain] = email.split('@');
@@ -31,7 +32,7 @@ function AuthPage() {
   const [foundEmail, setFoundEmail] = useState('');
 
   useEffect(() => {
-    const saved = safeGetItem('araon_temp_signup', {});
+    const saved = safeGetItem(STORAGE_KEYS.tempSignup, {});
     if (saved.name) setName(saved.name);
     if (saved.phone) setPhone(saved.phone);
     if (saved.email) setEmail(saved.email);
@@ -39,7 +40,7 @@ function AuthPage() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('araon_temp_signup', JSON.stringify({ name, phone, email, ageCheck: isUnder14 }));
+    safeSetJson(STORAGE_KEYS.tempSignup, { name, phone, email, ageCheck: isUnder14 });
   }, [name, phone, email, isUnder14]);
 
   const handleSubmit = async () => {
@@ -49,7 +50,7 @@ function AuthPage() {
     try {
       if (isLoginMode) {
         await signInWithEmailAndPassword(auth, email, password);
-        localStorage.removeItem('araon_temp_signup');
+        safeRemoveItem(STORAGE_KEYS.tempSignup);
       } else {
         if (!name || !phone) { setError('이름과 전화번호를 모두 입력해주세요.'); setLoading(false); return; }
         if (!privacyAgreed) { setError('개인정보 수집 및 이용에 동의해 주세요.'); setLoading(false); return; }
@@ -60,7 +61,7 @@ function AuthPage() {
           progress: 0, stats: { totalWords: 0, weeklyWords: 0, weeklyStudyTime: 0 },
           createdAt: new Date(), privacyAgreed: true, privacyAgreedAt: new Date()
         });
-        localStorage.removeItem('araon_temp_signup');
+        safeRemoveItem(STORAGE_KEYS.tempSignup);
       }
     } catch (err) {
       if (err.code === 'auth/invalid-credential') setError('이메일 또는 비밀번호가 올바르지 않습니다.');
