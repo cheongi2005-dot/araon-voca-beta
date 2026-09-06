@@ -7,6 +7,7 @@ import { findLevel } from '../config/levelConfig';
 import { DEFAULT_ACCENT_COLOR } from '../config/theme';
 import { STORAGE_KEYS } from '../config/storageKeys';
 import { safeGetItem, safeSetJson } from '../utils/storage';
+import { sanitizeUserForCache } from '../utils/cachedUser';
 import { getWeekBoundsSunday } from '../utils/dateUtils';
 import { calculateDailyStats, getDominantLevelColor, summarizeWeek } from '../utils/activity';
 import { useTheme } from '../hooks/useTheme';
@@ -48,7 +49,9 @@ const StudentDashboard = () => {
         if (snapshot.exists()) {
           const freshData = { id: snapshot.id, ...snapshot.data() };
           setStudent(freshData);
-          safeSetJson(STORAGE_KEYS.cachedUser, freshData);
+          // 화면에는 이름/전화번호가 필요하니 state에는 원본을 두고,
+          // 캐시에는 개인정보를 뺀 버전만 남깁니다.
+          safeSetJson(STORAGE_KEYS.cachedUser, sanitizeUserForCache(freshData));
         } else {
           console.warn('해당 이메일의 문서가 Firestore에 없습니다:', user.email);
         }

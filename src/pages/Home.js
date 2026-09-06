@@ -7,6 +7,7 @@ import { LEVEL_CONFIG, DEFAULT_LEVEL_ID, findLevel, toDbLevelKey } from '../conf
 import { BRAND_COLOR, WEEKDAY_LABELS_MON } from '../config/theme';
 import { STORAGE_KEYS } from '../config/storageKeys';
 import { readCache, safeGetItem, safeSetJson, writeCache } from '../utils/storage';
+import { sanitizeUserForCache } from '../utils/cachedUser';
 import { getWeekBounds } from '../utils/dateUtils';
 import { readMistakesCache, refreshMistakesCache } from '../utils/mistakes';
 import { syncLevelProgressToLocal } from '../utils/levelProgress';
@@ -54,9 +55,6 @@ const buildWeeklyStats = (attendance) => {
   };
 };
 
-/** 개인정보는 localStorage에 남기지 않습니다. */
-const sanitizeForCache = ({ name, phone, fcmToken, lastTokenUpdate, ...safe }) => safe;
-
 function Home() {
   const navigate = useNavigate();
   const [isDark, setIsDark] = useTheme();
@@ -86,7 +84,7 @@ function Home() {
 
         const data = { id: snapshot.id, ...snapshot.data() };
         setStudentData(data);
-        safeSetJson(STORAGE_KEYS.cachedUser, sanitizeForCache(data));
+        safeSetJson(STORAGE_KEYS.cachedUser, sanitizeUserForCache(data));
 
         // 내 데이터가 도착하면 곧바로 화면을 열고, 무거운 작업은 뒤로 미룹니다.
         setIsLoading(false);
