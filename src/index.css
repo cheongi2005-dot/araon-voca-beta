@@ -17,3 +17,36 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/*
+ * 디자인 시스템 애니메이션 토큰.
+ * Apple 계열 UI의 인터랙션감을 내는 이징/스프링 값입니다.
+ *  --ease-out-apple : 진입/전환에 쓰는 부드러운 감속 곡선
+ *  --ease-spring     : 버튼을 뗄 때 살짝 튕기는 스프링감
+ */
+:root {
+  --ease-out-apple: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise-in {
+  animation: rise-in 0.5s var(--ease-out-apple) both;
+}
+
+.press {
+  transition: transform 0.35s var(--ease-spring), box-shadow 0.35s var(--ease-out-apple), background-color 0.2s ease;
+}
+.press:active {
+  transform: scale(0.97);
+}
