@@ -11,6 +11,7 @@ import QuizEngine from '../components/QuizEngine';
 import LoadingScreen from '../components/LoadingScreen';
 import AppHeader from '../components/AppHeader';
 import QuizModeSelector from '../components/QuizModeSelector';
+import WordFlashcards from '../components/WordFlashcards';
 import { useTheme } from '../hooks/useTheme';
 import { safeGetItem, safeSetJson } from '../utils/storage';
 import { getMistakeWords } from '../utils/mistakes';
@@ -336,18 +337,14 @@ const LevelTemplate = () => {
         )}
 
         {(view === 'study' || view === 'dayMistakes') && (
-          <div className="animate__animated animate__fadeIn">
-            <div className="mb-6 text-center font-bold dark:text-white">{view === 'study' ? `${loadedData.titles[selectedDay]} 단어 학습` : "내 오답 리스트"}</div>
-            <div className="space-y-3">
-              {(view === 'study' ? currentDayData : currentDayData.filter(i => dayMistakes.includes(i.word))).map((item, i) => (
-                <div key={i} className="p-5 bg-white dark:bg-[#1E1E1E] rounded-2xl border flex items-center justify-between shadow-sm">
-                  <div className="flex items-center gap-3 text-left">{item.emoji && <span className="text-2xl">{item.emoji}</span>}<div><p className="text-xl font-bold dark:text-white">{item.word}</p><p className="text-sm text-zinc-400">{item.meaning}</p></div></div>
-                  <button onClick={() => speak(item.word)} className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${config.color}15`, color: config.color }}><i className="ph-bold ph-speaker-high text-xl"></i></button>
-                </div>
-              ))}
-            </div>
-            <button onClick={() => { if(view === 'study') recordActivity('study'); setView('modeSelect'); }} className="w-full p-6 mt-8 rounded-[2rem] font-black text-white shadow-lg" style={{ backgroundColor: config.color }}>학습 완료! 퀴즈 도전하기</button>
-          </div>
+          <WordFlashcards
+            key={`${view}-${selectedDay}`}
+            words={view === 'study' ? currentDayData : currentDayData.filter(i => dayMistakes.includes(i.word))}
+            themeColor={config.color}
+            title={view === 'study' ? `Day ${selectedDay} · ${loadedData.titles[selectedDay]}` : '내 오답 복습'}
+            onSpeak={speak}
+            onComplete={() => { if (view === 'study') recordActivity('study'); setView('modeSelect'); }}
+          />
         )}
 
         {view === 'quiz' && (
