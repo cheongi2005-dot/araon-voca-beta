@@ -123,9 +123,10 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
         </div>
       ) : (
         <>
-          <div style={{ perspective: '1200px' }}>
+          {/* 페이드 애니메이션은 바깥에 둡니다. 뒤집히는 요소에 opacity 애니메이션이 걸리면
+              3D가 평면화되어 뒷면 대신 좌우 반전된 앞면이 보입니다. */}
+          <div key={`${round}-${pos}`} className="animate__animated animate__fadeIn" style={{ perspective: '1200px' }}>
             <div
-              key={`${round}-${pos}`}
               role="button"
               tabIndex={0}
               aria-label={flipped ? '앞면 보기' : '뜻 보기'}
@@ -133,7 +134,7 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlipped(prev => !prev); }
               }}
-              className="relative w-full cursor-pointer transition-transform duration-500 motion-reduce:transition-none animate__animated animate__fadeIn"
+              className="relative w-full cursor-pointer transition-transform duration-500 motion-reduce:transition-none"
               style={{
                 height: 'clamp(300px, calc(100dvh - 360px - env(safe-area-inset-top)), 480px)',
                 transformStyle: 'preserve-3d',
