@@ -4,8 +4,16 @@
         <meta charset="utf-8"/>
         <link rel="icon" href="/favicon.ico"/>
         <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" crossorigin />
+        <!--
+          영문/숫자: Fraunces (Google Fonts). 한글: 마루 부리 (NAVER 제작, fonts-archive 미러 CDN).
+          두 폰트 다 한글이 900(Black) 없이 700(Bold)까지만 있어, 900 요청 시 브라우저가
+          자동으로 해당 폰트의 가장 굵은 실제 글자(700)를 그대로 씁니다(가짜 볼드 아님).
+        -->
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;700;900&display=swap" />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonts-archive/MaruBuri/MaruBuri.css" />
         <meta name="theme-color" content="#F8F9FA"/>
         <meta name="description" content="아라온 스쿨 영단어 학습 시스템"/>
         <link rel="manifest" href="/site.webmanifest"/>
@@ -37,7 +45,7 @@
         <script src="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1" defer crossorigin="anonymous"></script>
         <style>
             body {
-                font-family: Pretendard,sans-serif;
+                font-family: "Fraunces", "Maru Buri", serif;
                 -webkit-tap-highlight-color: transparent;
                 overscroll-behavior-y: none;
                 background-color: #f8f9fa;
@@ -57,7 +65,7 @@
                 #initial-loader {
                     position: fixed; inset: 0; z-index: 9999;
                     display: flex; flex-direction: column; align-items: center; justify-content: center;
-                    padding: 2.5rem; background-color: #F8F9FA; transition: background-color 0.5s; font-family: Pretendard, sans-serif;
+                    padding: 2.5rem; background-color: #F8F9FA; transition: background-color 0.5s; font-family: "Fraunces", "Maru Buri", serif;
                 }
                 #initial-loader .loader-box { width: 100%; max-width: 20rem; display: flex; flex-direction: column; align-items: center; }
                 #initial-loader .qa-section { width: 100%; margin-bottom: 4rem; }

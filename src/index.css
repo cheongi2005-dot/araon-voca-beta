@@ -4,10 +4,15 @@
 
 body {
   margin: 0;
-  /* Pretendard를 최우선으로 설정합니다. */
-  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  /*
+   * 영문/숫자는 Fraunces, 한글은 마루 부리를 씁니다.
+   * Fraunces가 한글 글리프를 갖고 있지 않으므로 브라우저가 글자 단위로 자동
+   * 폴백해 영문·한글이 각자 알맞은 폰트로 렌더링됩니다.
+   * 두 폰트 다 900(Black)이 없어 font-black 텍스트는 각 폰트의 700(Bold)
+   * 실제 글자로 자동 대체됩니다(가짜 볼드 아님).
+   */
+  font-family: "Fraunces", "Maru Buri", -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'Roboto', 'Helvetica Neue', serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -16,4 +21,37 @@ code {
   /* 코드 폰트는 가독성을 위해 기존의 고정폭(monospace) 폰트를 유지하거나 취향껏 변경하세요. */
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/*
+ * 디자인 시스템 애니메이션 토큰.
+ * Apple 계열 UI의 인터랙션감을 내는 이징/스프링 값입니다.
+ *  --ease-out-apple : 진입/전환에 쓰는 부드러운 감속 곡선
+ *  --ease-spring     : 버튼을 뗄 때 살짝 튕기는 스프링감
+ */
+:root {
+  --ease-out-apple: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise-in {
+  animation: rise-in 0.5s var(--ease-out-apple) both;
+}
+
+.press {
+  transition: transform 0.35s var(--ease-spring), box-shadow 0.35s var(--ease-out-apple), background-color 0.2s ease;
+}
+.press:active {
+  transform: scale(0.97);
 }
