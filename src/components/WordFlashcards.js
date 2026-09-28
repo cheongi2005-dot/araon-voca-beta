@@ -21,6 +21,25 @@ const splitSentence = (sentence, word) => {
   };
 };
 
+/** 홈 화면 카드와 같은 박스 스타일 */
+const CARD = 'bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-2xl shadow-sm';
+
+/** 홈 화면 '주간 학습 리포트'의 작은 통계 타일과 같은 모양 */
+const StatTile = ({ label, value, icon, iconClassName = '', iconStyle }) => (
+  <div className={`${CARD} p-4 flex items-center gap-3`}>
+    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconClassName}`} style={iconStyle}>
+      <i className={`ph-fill ${icon} text-lg`}></i>
+    </div>
+    <div className="min-w-0">
+      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 truncate">{label}</p>
+      <div className="flex items-baseline gap-1">
+        <span className="text-xl font-black dark:text-white tracking-tight tabular-nums">{value}</span>
+        <span className="text-[11px] font-bold text-zinc-400">개</span>
+      </div>
+    </div>
+  </div>
+);
+
 const faceStyle = { backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' };
 
 /**
@@ -72,54 +91,61 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
   const wordSize = item && item.word.length > 10 ? 'text-3xl' : 'text-4xl';
 
   return (
-    <div className="animate__animated animate__fadeIn flex flex-col gap-4">
-      <div className="flex items-center justify-between px-1">
-        <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200 truncate">
+    <div className="animate__animated animate__fadeIn flex flex-col gap-3">
+      <div className="flex items-center justify-between px-2 mb-1">
+        <h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 tracking-tight truncate">
           {round > 1 ? '다시 보기 · ' : ''}{title}
-        </p>
-        <span className="text-sm font-bold text-zinc-400 tabular-nums shrink-0 ml-3">
+        </h2>
+        <span className="text-xs font-black text-zinc-400 tabular-nums shrink-0 ml-3">
           {Math.min(pos + 1, queue.length)} / {queue.length}
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="h-12 rounded-2xl flex items-center justify-between px-4 bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-          <span className="flex items-center gap-1.5 text-sm font-bold"><i className="ph-bold ph-check"></i>외웠어요</span>
-          <span className="text-lg font-black tabular-nums">{known.length}</span>
-        </div>
-        <div className="h-12 rounded-2xl flex items-center justify-between px-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400">
-          <span className="flex items-center gap-1.5 text-sm font-bold"><i className="ph-bold ph-arrow-counter-clockwise"></i>다시 볼래요</span>
-          <span className="text-lg font-black tabular-nums">{again.length}</span>
-        </div>
+      <div className="grid grid-cols-2 gap-3">
+        <StatTile
+          label="외웠어요"
+          value={known.length}
+          icon="ph-check-circle"
+          iconClassName="bg-[#F2FAF7] dark:bg-[#1B2D26] text-[#34D399]"
+        />
+        <StatTile
+          label="다시 볼래요"
+          value={again.length}
+          icon="ph-arrow-counter-clockwise"
+          iconStyle={{ backgroundColor: `${themeColor}20`, color: themeColor }}
+        />
       </div>
 
       {isDone ? (
-        <div className="animate__animated animate__fadeIn flex flex-col items-center text-center pt-12 pb-6">
-          <span className="text-7xl mb-6">{again.length === 0 ? '🎉' : '💪'}</span>
-          <h2 className="text-2xl font-black dark:text-white mb-2">
-            {again.length === 0 ? '모두 외웠어요!' : '거의 다 왔어요'}
-          </h2>
-          <p className="text-zinc-400 font-bold mb-10">
-            {again.length === 0 ? '이제 퀴즈로 확인해볼까요?' : `다시 볼 단어 ${again.length}개만 한 번 더 넘겨봐요.`}
-          </p>
-          <div className="w-full space-y-3">
-            {again.length > 0 && (
-              <button
-                onClick={() => startRound(again)}
-                className="w-full h-14 rounded-2xl font-bold text-lg text-white active:scale-[0.98] transition-transform"
-                style={{ backgroundColor: themeColor }}
-              >
-                다시 볼 단어만 보기
-              </button>
-            )}
-            <button
-              onClick={onComplete}
-              className={`w-full h-14 rounded-2xl font-bold text-lg active:scale-[0.98] transition-transform ${again.length > 0 ? 'bg-zinc-100 dark:bg-zinc-800 dark:text-white' : 'text-white'}`}
-              style={again.length > 0 ? undefined : { backgroundColor: themeColor }}
-            >
-              퀴즈 도전
-            </button>
+        <div className="animate__animated animate__fadeIn flex flex-col gap-3">
+          <div className={`${CARD} p-6 flex flex-col items-center text-center`}>
+            <span className="text-6xl mt-4 mb-5">{again.length === 0 ? '🎉' : '💪'}</span>
+            <h3 className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: themeColor }}>
+              {again.length === 0 ? 'All Clear' : 'Almost There'}
+            </h3>
+            <p className="text-xl font-black tracking-tight dark:text-white mb-1">
+              {again.length === 0 ? '모두 외웠어요!' : '거의 다 왔어요'}
+            </p>
+            <p className="text-xs font-bold text-zinc-400 mb-4">
+              {again.length === 0 ? '이제 퀴즈로 확인해볼까요?' : `다시 볼 단어 ${again.length}개만 한 번 더 넘겨봐요.`}
+            </p>
           </div>
+          {again.length > 0 && (
+            <button
+              onClick={() => startRound(again)}
+              className="w-full h-14 rounded-2xl font-black text-white shadow-sm active:scale-[0.98] transition-all"
+              style={{ backgroundColor: themeColor }}
+            >
+              다시 볼 단어만 보기
+            </button>
+          )}
+          <button
+            onClick={onComplete}
+            className={`w-full h-14 font-black active:scale-[0.98] transition-all ${again.length > 0 ? `${CARD} text-zinc-700 dark:text-zinc-200` : 'rounded-2xl text-white shadow-sm'}`}
+            style={again.length > 0 ? undefined : { backgroundColor: themeColor }}
+          >
+            퀴즈 도전
+          </button>
         </div>
       ) : (
         <>
@@ -136,58 +162,58 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
               }}
               className="relative w-full cursor-pointer transition-transform duration-500 motion-reduce:transition-none"
               style={{
-                height: 'clamp(300px, calc(100dvh - 360px - env(safe-area-inset-top)), 480px)',
+                height: 'clamp(300px, calc(100dvh - 380px - env(safe-area-inset-top)), 460px)',
                 transformStyle: 'preserve-3d',
                 transform: flipped ? 'rotateY(180deg)' : 'none',
               }}
             >
               {/* 앞면: 단어 */}
-              <div
-                className="absolute inset-0 rounded-[1.8rem] bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 shadow-sm flex flex-col items-center justify-center text-center px-6"
-                style={faceStyle}
-              >
+              <div className={`${CARD} absolute inset-0 flex flex-col items-center justify-center text-center px-6`} style={faceStyle}>
                 {item.emoji && <span className="text-7xl mb-5 leading-none">{item.emoji}</span>}
                 <p className={`${wordSize} font-black tracking-tight dark:text-white break-all`}>{item.word}</p>
                 <button
                   onClick={speakFrom(item.word)}
-                  className="mt-6 h-11 px-5 rounded-full flex items-center gap-1.5 font-bold active:scale-95 transition-transform"
-                  style={{ backgroundColor: `${themeColor}1A`, color: themeColor }}
+                  className="mt-6 h-11 pl-2 pr-4 rounded-xl flex items-center gap-2 text-sm font-black active:scale-[0.98] transition-all"
+                  style={{ backgroundColor: `${themeColor}20`, color: themeColor }}
                 >
-                  <i className="ph-bold ph-speaker-high text-lg"></i>발음 듣기
+                  <span className="w-7 h-7 rounded-lg bg-white/60 dark:bg-black/20 flex items-center justify-center">
+                    <i className="ph-fill ph-speaker-high"></i>
+                  </span>
+                  발음 듣기
                 </button>
-                <span className="absolute bottom-5 inset-x-0 flex items-center justify-center gap-1.5 text-xs font-bold text-zinc-400">
+                <span className="absolute bottom-5 inset-x-0 flex items-center justify-center gap-1.5 text-[11px] font-bold text-zinc-400">
                   <i className="ph-bold ph-arrows-clockwise"></i>카드를 탭하면 뜻이 보여요
                 </span>
               </div>
 
               {/* 뒷면: 뜻 + 예문 */}
               <div
-                className="absolute inset-0 rounded-[1.8rem] bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 shadow-sm flex flex-col items-center justify-center text-center px-5 pt-6 pb-12 overflow-y-auto"
+                className={`${CARD} absolute inset-0 flex flex-col items-center justify-center text-center px-5 pt-6 pb-12 overflow-y-auto`}
                 style={{ ...faceStyle, transform: 'rotateY(180deg)' }}
               >
-                <p className="text-sm font-bold text-zinc-400 mb-1">{item.word}</p>
+                <h3 className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: themeColor }}>{item.word}</h3>
                 <p className="text-3xl font-black tracking-tight dark:text-white mb-6 break-keep">{item.meaning}</p>
                 {sentence && (
-                  <div className="w-full flex items-center gap-3 pl-4 pr-2 py-3 rounded-2xl bg-zinc-100 dark:bg-zinc-800/80 text-left">
+                  <div className="w-full p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-[#F8F9FA] dark:bg-[#0A0A0B] flex items-center gap-3 text-left">
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-black tracking-widest text-zinc-400 mb-0.5">EXAMPLE</p>
-                      <p className="text-base leading-snug dark:text-white">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">Example</p>
+                      <p className="text-base font-bold leading-snug dark:text-white">
                         {sentence.before}
-                        {sentence.filled && <span className="font-bold" style={{ color: themeColor }}>{sentence.filled}</span>}
+                        {sentence.filled && <span className="font-black" style={{ color: themeColor }}>{sentence.filled}</span>}
                         {sentence.after}
                       </p>
                     </div>
                     <button
                       onClick={speakFrom(sentenceText)}
                       aria-label="예문 듣기"
-                      className="shrink-0 w-11 h-11 rounded-full bg-white dark:bg-[#1E1E1E] shadow-sm flex items-center justify-center active:scale-95 transition-transform"
-                      style={{ color: themeColor }}
+                      className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center active:scale-[0.98] transition-all"
+                      style={{ backgroundColor: `${themeColor}20`, color: themeColor }}
                     >
-                      <i className="ph-bold ph-speaker-high text-lg"></i>
+                      <i className="ph-fill ph-speaker-high text-lg"></i>
                     </button>
                   </div>
                 )}
-                <span className="absolute bottom-5 inset-x-0 flex items-center justify-center gap-1.5 text-xs font-bold text-zinc-400">
+                <span className="absolute bottom-5 inset-x-0 flex items-center justify-center gap-1.5 text-[11px] font-bold text-zinc-400">
                   <i className="ph-bold ph-arrows-clockwise"></i>다시 탭하면 앞면
                 </span>
               </div>
@@ -197,13 +223,13 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => rate(false)}
-              className="h-14 rounded-2xl font-bold text-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 active:scale-[0.97] transition-transform"
+              className={`${CARD} h-14 font-black text-zinc-700 dark:text-zinc-200 active:scale-[0.98] transition-all`}
             >
               다시 볼래요
             </button>
             <button
               onClick={() => rate(true)}
-              className="h-14 rounded-2xl font-bold text-lg text-white bg-emerald-600 active:scale-[0.97] transition-transform"
+              className="h-14 rounded-2xl font-black text-white bg-emerald-600 shadow-sm active:scale-[0.98] transition-all"
             >
               외웠어요
             </button>
