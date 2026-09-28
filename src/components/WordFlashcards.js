@@ -21,13 +21,13 @@ const splitSentence = (sentence, word) => {
   };
 };
 
-/** 홈 화면 카드와 같은 박스 스타일 */
-const CARD = 'bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-2xl shadow-sm';
+/** 홈 화면 카드와 같은 박스 스타일 (각진 모서리) */
+const CARD = 'bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-none shadow-sm';
 
 /** 홈 화면 '주간 학습 리포트'의 작은 통계 타일과 같은 모양 */
 const StatTile = ({ label, value, icon, iconClassName = '', iconStyle }) => (
   <div className={`${CARD} p-4 flex items-center gap-3`}>
-    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${iconClassName}`} style={iconStyle}>
+    <div className={`w-9 h-9 rounded-none flex items-center justify-center flex-shrink-0 ${iconClassName}`} style={iconStyle}>
       <i className={`ph-fill ${icon} text-lg`}></i>
     </div>
     <div className="min-w-0">
@@ -91,7 +91,7 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
   const wordSize = item && item.word.length > 10 ? 'text-3xl' : 'text-4xl';
 
   return (
-    <div className="animate__animated animate__fadeIn flex flex-col gap-3">
+    <div className="animate-rise-in flex flex-col gap-3">
       <div className="flex items-center justify-between px-2 mb-1">
         <h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 tracking-tight truncate">
           {round > 1 ? '다시 보기 · ' : ''}{title}
@@ -117,7 +117,7 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
       </div>
 
       {isDone ? (
-        <div className="animate__animated animate__fadeIn flex flex-col gap-3">
+        <div className="animate-rise-in flex flex-col gap-3">
           <div className={`${CARD} p-6 flex flex-col items-center text-center`}>
             <span className="text-6xl mt-4 mb-5">{again.length === 0 ? '🎉' : '💪'}</span>
             <h3 className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: themeColor }}>
@@ -133,7 +133,7 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
           {again.length > 0 && (
             <button
               onClick={() => startRound(again)}
-              className="w-full h-14 rounded-2xl font-black text-white shadow-sm active:scale-[0.98] transition-all"
+              className="press w-full h-14 rounded-none font-black text-white shadow-sm"
               style={{ backgroundColor: themeColor }}
             >
               다시 볼 단어만 보기
@@ -141,7 +141,7 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
           )}
           <button
             onClick={onComplete}
-            className={`w-full h-14 font-black active:scale-[0.98] transition-all ${again.length > 0 ? `${CARD} text-zinc-700 dark:text-zinc-200` : 'rounded-2xl text-white shadow-sm'}`}
+            className={`press w-full h-14 font-black ${again.length > 0 ? `${CARD} text-zinc-700 dark:text-zinc-200` : 'rounded-none text-white shadow-sm'}`}
             style={again.length > 0 ? undefined : { backgroundColor: themeColor }}
           >
             퀴즈 도전
@@ -149,9 +149,9 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
         </div>
       ) : (
         <>
-          {/* 페이드 애니메이션은 바깥에 둡니다. 뒤집히는 요소에 opacity 애니메이션이 걸리면
+          {/* 등장 애니메이션은 바깥에 둡니다. 뒤집히는 요소에 opacity 애니메이션이 걸리면
               3D가 평면화되어 뒷면 대신 좌우 반전된 앞면이 보입니다. */}
-          <div key={`${round}-${pos}`} className="animate__animated animate__fadeIn" style={{ perspective: '1200px' }}>
+          <div key={`${round}-${pos}`} className="animate-rise-in" style={{ perspective: '1200px' }}>
             <div
               role="button"
               tabIndex={0}
@@ -173,10 +173,10 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
                 <p className={`${wordSize} font-black tracking-tight dark:text-white break-all`}>{item.word}</p>
                 <button
                   onClick={speakFrom(item.word)}
-                  className="mt-6 h-11 pl-2 pr-4 rounded-xl flex items-center gap-2 text-sm font-black active:scale-[0.98] transition-all"
+                  className="press mt-6 h-11 pl-2 pr-4 rounded-none flex items-center gap-2 text-sm font-black"
                   style={{ backgroundColor: `${themeColor}20`, color: themeColor }}
                 >
-                  <span className="w-7 h-7 rounded-lg bg-white/60 dark:bg-black/20 flex items-center justify-center">
+                  <span className="w-7 h-7 rounded-none bg-white/60 dark:bg-black/20 flex items-center justify-center">
                     <i className="ph-fill ph-speaker-high"></i>
                   </span>
                   발음 듣기
@@ -194,7 +194,7 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
                 <h3 className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: themeColor }}>{item.word}</h3>
                 <p className="text-3xl font-black tracking-tight dark:text-white mb-6 break-keep">{item.meaning}</p>
                 {sentence && (
-                  <div className="w-full p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-[#F8F9FA] dark:bg-[#0A0A0B] flex items-center gap-3 text-left">
+                  <div className="w-full p-4 rounded-none border border-zinc-100 dark:border-zinc-800 bg-[#F8F9FA] dark:bg-[#0A0A0B] flex items-center gap-3 text-left">
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">Example</p>
                       <p className="text-base font-bold leading-snug dark:text-white">
@@ -206,7 +206,7 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
                     <button
                       onClick={speakFrom(sentenceText)}
                       aria-label="예문 듣기"
-                      className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center active:scale-[0.98] transition-all"
+                      className="press shrink-0 w-11 h-11 rounded-none flex items-center justify-center"
                       style={{ backgroundColor: `${themeColor}20`, color: themeColor }}
                     >
                       <i className="ph-fill ph-speaker-high text-lg"></i>
@@ -223,13 +223,13 @@ const WordFlashcards = ({ words, themeColor, title, onSpeak, onComplete }) => {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => rate(false)}
-              className={`${CARD} h-14 font-black text-zinc-700 dark:text-zinc-200 active:scale-[0.98] transition-all`}
+              className={`press ${CARD} h-14 font-black text-zinc-700 dark:text-zinc-200`}
             >
               다시 볼래요
             </button>
             <button
               onClick={() => rate(true)}
-              className="h-14 rounded-2xl font-black text-white bg-emerald-600 shadow-sm active:scale-[0.98] transition-all"
+              className="press h-14 rounded-none font-black text-white bg-emerald-600 shadow-sm"
             >
               외웠어요
             </button>
