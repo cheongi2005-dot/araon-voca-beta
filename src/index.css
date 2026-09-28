@@ -4,10 +4,13 @@
 
 body {
   margin: 0;
-  /* Pretendard를 최우선으로 설정합니다. */
-  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  /*
+   * 영문/숫자는 Inter, 한글은 Gothic A1을 씁니다.
+   * Inter가 한글 글리프를 갖고 있지 않으므로 브라우저가 글자 단위로 자동
+   * 폴백해 영문·한글이 각자 알맞은 폰트로 렌더링됩니다.
+   */
+  font-family: "Inter", "Gothic A1", -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'Roboto', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

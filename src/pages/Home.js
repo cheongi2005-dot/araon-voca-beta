@@ -211,9 +211,9 @@ function Home() {
             </div>
             <div className="flex flex-col gap-3">
               <Link to={currentLevel.path} className="block group">
-                <div className="press p-6 border border-zinc-100 dark:border-zinc-800 rounded-[10px] flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-sm">
+                <div className="press p-6 border border-zinc-100 dark:border-zinc-800 rounded-none flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-sm">
                   <div className="flex items-center gap-5">
-                    <div className="w-12 h-12 rounded-[6px] flex items-center justify-center text-white shadow-inner font-black text-lg" style={{ backgroundColor: currentLevel.color }}>
+                    <div className="w-12 h-12 rounded-none flex items-center justify-center text-white shadow-inner font-black text-lg" style={{ backgroundColor: currentLevel.color }}>
                       {currentLevel.id === '00' ? <i className="ph-fill ph-headphones"></i> : currentLevel.id}
                     </div>
                     <div>
@@ -226,16 +226,16 @@ function Home() {
               </Link>
 
               <Link to="/my-voca" className="block group">
-                <div className="press p-6 border border-zinc-100 dark:border-zinc-800 rounded-[10px] flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-sm">
+                <div className="press p-6 border border-zinc-100 dark:border-zinc-800 rounded-none flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-sm">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-[6px] flex items-center justify-center text-white shadow-lg" style={{ backgroundColor: BRAND_COLOR, boxShadow: `0 10px 15px -3px ${BRAND_COLOR}4D` }}>
+                    <div className="w-12 h-12 rounded-none flex items-center justify-center text-white shadow-lg" style={{ backgroundColor: BRAND_COLOR, boxShadow: `0 10px 15px -3px ${BRAND_COLOR}4D` }}>
                       <i className="ph-fill ph-star text-xl"></i>
                     </div>
                     <div>
                       <h3 className="text-[9px] font-black uppercase tracking-widest" style={{ color: BRAND_COLOR }}>Personal Collection</h3>
                       <p className="text-xl font-black dark:text-white tracking-tight">
                         나의 단어장{' '}
-                        <span className="ml-2 text-xs px-2 py-0.5 text-white rounded-[4px] font-black" style={{ backgroundColor: BRAND_COLOR }}>{totalMistakes}</span>
+                        <span className="ml-2 text-xs px-2 py-0.5 text-white rounded-none font-black" style={{ backgroundColor: BRAND_COLOR }}>{totalMistakes}</span>
                       </p>
                     </div>
                   </div>
@@ -252,8 +252,8 @@ function Home() {
             </div>
             <Link to="/dashboard" className="block group">
               <div className="grid grid-cols-2 gap-3 mb-3">
-                <div className="press p-4 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-[10px] shadow-sm flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-[6px] flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${currentLevel.color}20`, color: currentLevel.color }}>
+                <div className="press p-4 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-none shadow-sm flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-none flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${currentLevel.color}20`, color: currentLevel.color }}>
                     <i className="ph-fill ph-book-open text-lg"></i>
                   </div>
                   <div>
@@ -264,8 +264,8 @@ function Home() {
                     </div>
                   </div>
                 </div>
-                <div className="press p-4 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-[10px] shadow-sm flex items-center gap-3">
-                  <div className="w-9 h-9 bg-[#F2FAF7] dark:bg-[#1B2D26] rounded-[6px] flex items-center justify-center text-[#34D399] flex-shrink-0">
+                <div className="press p-4 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-none shadow-sm flex items-center gap-3">
+                  <div className="w-9 h-9 bg-[#F2FAF7] dark:bg-[#1B2D26] rounded-none flex items-center justify-center text-[#34D399] flex-shrink-0">
                     <i className="ph-fill ph-clock text-lg"></i>
                   </div>
                   <div>
@@ -278,7 +278,7 @@ function Home() {
                 </div>
               </div>
 
-              <div className="press p-6 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-[10px] shadow-sm relative">
+              <div className="press p-6 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-none shadow-sm relative">
                 <div className="flex items-center justify-between mb-8">
                   <h3 className="text-[10px] font-black text-zinc-300 dark:text-zinc-600 uppercase tracking-widest">Weekly Activity (월-일)</h3>
                   <i className="ph-bold ph-caret-right text-zinc-200 group-hover:text-zinc-400 transition-colors"></i>
@@ -293,7 +293,7 @@ function Home() {
                     return (
                       <div key={day} className="flex-1 flex flex-col items-center gap-3 h-full justify-end">
                         <div
-                          className="w-full max-w-[24px] rounded-[3px] transition-all duration-1000"
+                          className="w-full max-w-[24px] rounded-none transition-all duration-1000"
                           style={{
                             height: `${heightPercent}%`,
                             backgroundColor: stat.totalWords > 0
@@ -316,14 +316,14 @@ function Home() {
               <h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 tracking-tight">명예의 전당 & 랭킹</h2>
             </div>
             <Link to="/ranking" className="block group">
-              <div className="press p-6 border border-zinc-100 dark:border-zinc-800 rounded-[10px] flex items-center bg-white dark:bg-[#1E1E1E] shadow-sm">
+              <div className="press p-6 border border-zinc-100 dark:border-zinc-800 rounded-none flex items-center bg-white dark:bg-[#1E1E1E] shadow-sm">
                 {isRankLoading && !myRankInfo ? (
                   <div className="text-center w-full py-2">
                     <p className="text-xs font-bold text-zinc-400 animate-pulse">랭킹 데이터를 불러오는 중... ⏳</p>
                   </div>
                 ) : myRankInfo ? (
                   <>
-                    <div className="w-12 h-12 bg-[#FDF2F2] dark:bg-[#2D1B1B] rounded-[8px] flex items-center justify-center flex-shrink-0">
+                    <div className="w-12 h-12 bg-[#FDF2F2] dark:bg-[#2D1B1B] rounded-none flex items-center justify-center flex-shrink-0">
                       {myRankInfo.score > 0 && myRankInfo.rank <= 3 ? (
                         <span className="text-2xl">{['🥇', '🥈', '🥉'][myRankInfo.rank - 1]}</span>
                       ) : (
@@ -337,7 +337,7 @@ function Home() {
                         <span className="text-[10px] font-black dark:text-[#FF4D4D] uppercase tracking-widest" style={{ color: BRAND_COLOR }}>
                           {myRankInfo.levelTitle} 챔프
                         </span>
-                        <span className="px-2 py-0.5 bg-[#FDF2F2] dark:bg-[#70011D]/30 dark:text-[#FF4D4D] rounded-[4px] text-[9px] font-bold" style={{ color: BRAND_COLOR }}>
+                        <span className="px-2 py-0.5 bg-[#FDF2F2] dark:bg-[#70011D]/30 dark:text-[#FF4D4D] rounded-none text-[9px] font-bold" style={{ color: BRAND_COLOR }}>
                           상위 {topPercent}%
                         </span>
                       </div>

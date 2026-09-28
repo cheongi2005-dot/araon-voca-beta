@@ -206,7 +206,7 @@ const MyVoca = () => {
             <button
               onClick={() => setView('modeSelect')}
               disabled={totalCount === 0}
-              className="press animate-rise-in w-full rounded-[10px] p-6 text-white shadow-md relative overflow-hidden group"
+              className="press animate-rise-in w-full rounded-none p-6 text-white shadow-md relative overflow-hidden group"
               style={{ backgroundColor: themeColor, animationDelay: '0ms' }}
             >
               <div className="relative z-10 flex items-center justify-between text-left">
@@ -217,7 +217,7 @@ const MyVoca = () => {
                   </div>
                   <p className="text-sm font-bold opacity-70">{totalCount}개의 단어가 기다려요</p>
                 </div>
-                <div className="w-14 h-14 bg-white/15 rounded-[8px] flex items-center justify-center group-hover:bg-white/25 transition-colors">
+                <div className="w-14 h-14 bg-white/15 rounded-none flex items-center justify-center group-hover:bg-white/25 transition-colors">
                   <i className="ph-bold ph-arrow-right text-2xl"></i>
                 </div>
               </div>
@@ -231,12 +231,12 @@ const MyVoca = () => {
                 return group.words.length > 0 && (
                   <section
                     key={group.key}
-                    className="animate-rise-in bg-white dark:bg-[#1E1E1E] rounded-[10px] shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden transition-all"
+                    className="animate-rise-in bg-white dark:bg-[#1E1E1E] rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden transition-all"
                     style={{ animationDelay: `${80 + idx * 60}ms` }}
                   >
                     <button onClick={() => toggleCollapse(group.key)} className="w-full flex items-center justify-between p-5 text-left active:bg-zinc-50 dark:active:bg-zinc-800/50 transition-colors">
                       <div className="flex items-center gap-5">
-                        <div className="w-11 h-11 rounded-[8px] flex items-center justify-center shadow-inner"
+                        <div className="w-11 h-11 rounded-none flex items-center justify-center shadow-inner"
                              style={{ backgroundColor: config.color + '15', color: config.color }}>
                           <i className="ph-bold ph-bookmark text-xl"></i>
                         </div>
@@ -251,7 +251,7 @@ const MyVoca = () => {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <span className="text-xs font-bold px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 rounded-[4px]">
+                        <span className="text-xs font-bold px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 rounded-none">
                           {group.words.length}
                         </span>
                         <i className={`ph-bold ph-caret-right text-zinc-300 transition-transform duration-300 ${isExpanded ? 'rotate-90' : ''}`}></i>
@@ -261,12 +261,12 @@ const MyVoca = () => {
                     {isExpanded && (
                       <div className="px-4 pb-4 space-y-2 border-t border-zinc-50 dark:border-zinc-800/50 pt-4 bg-zinc-50/30 dark:bg-black/10 animate-rise-in">
                         {group.words.map((item, i) => (
-                          <div key={i} className="flex items-center justify-between p-4 bg-white dark:bg-[#1E1E1E] rounded-[8px] border border-zinc-100 dark:border-zinc-800 shadow-sm">
+                          <div key={i} className="flex items-center justify-between p-4 bg-white dark:bg-[#1E1E1E] rounded-none border border-zinc-100 dark:border-zinc-800 shadow-sm">
                             <div>
                               <p className="text-base font-bold dark:text-white leading-tight">{item.word} {item.emoji}</p>
                               <p className="text-xs text-zinc-400 font-medium mt-1">{item.meaning}</p>
                             </div>
-                            <button onClick={() => speak(item.word)} className="press p-3 bg-zinc-50 dark:bg-zinc-800 rounded-[6px] text-zinc-300 active:text-[#70011D]">
+                            <button onClick={() => speak(item.word)} className="press p-3 bg-zinc-50 dark:bg-zinc-800 rounded-none text-zinc-300 active:text-[#70011D]">
                               <i className="ph-bold ph-speaker-high text-lg"></i>
                             </button>
                           </div>
@@ -294,7 +294,7 @@ const MyVoca = () => {
             </div>
             <div className="relative">
                 <select value={selectedQuizLevelId} onChange={(e) => setSelectedQuizLevelId(e.target.value)}
-                        className="w-full p-4 bg-white dark:bg-[#1E1E1E] rounded-[10px] border border-zinc-200 dark:border-zinc-800 font-bold dark:text-white appearance-none outline-none text-sm shadow-sm focus:border-[#70011D]">
+                        className="w-full p-4 bg-white dark:bg-[#1E1E1E] rounded-none border border-zinc-200 dark:border-zinc-800 font-bold dark:text-white appearance-none outline-none text-sm shadow-sm focus:border-[#70011D]">
                   <option value="all">전체 레벨 통합</option>
                   {mistakesGroup.map(group => group.words.length > 0 && <option key={group.key} value={group.key}>{group.label}</option>)}
                 </select>
@@ -382,7 +382,7 @@ const MyVoca = () => {
 
         {view === 'result' && quizResults && (
           <div className="animate__animated animate__fadeIn text-center py-6 flex flex-col items-center">
-            <div className="w-20 h-20 bg-emerald-500 text-white rounded-[10px] flex items-center justify-center mb-6 shadow-lg animate-bounce">
+            <div className="w-20 h-20 bg-emerald-500 text-white rounded-none flex items-center justify-center mb-6 shadow-lg animate-bounce">
               <i className="ph-fill ph-crown text-5xl"></i>
             </div>
             <h2 className="text-2xl font-black dark:text-white mb-2">결과 리포트</h2>
@@ -391,11 +391,11 @@ const MyVoca = () => {
             </p>
 
             <div className="w-full grid grid-cols-2 gap-3 mb-8">
-              <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 rounded-[10px] border border-emerald-100 dark:border-transparent font-bold">
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 text-emerald-600 rounded-none border border-emerald-100 dark:border-transparent font-bold">
                 <p className="text-[10px] font-black uppercase opacity-60 mb-1">정답</p>
                 <p className="text-xl font-black">{quizResults.correctWords?.length || 0}</p>
               </div>
-              <div className="p-4 bg-rose-50 dark:bg-rose-900/10 text-rose-600 rounded-[10px] border border-rose-100 dark:border-transparent font-bold">
+              <div className="p-4 bg-rose-50 dark:bg-rose-900/10 text-rose-600 rounded-none border border-rose-100 dark:border-transparent font-bold">
                 <p className="text-[10px] font-black uppercase opacity-60 mb-1">오답</p>
                 <p className="text-xl font-black">{quizResults.incorrectWords?.length || 0}</p>
               </div>
@@ -406,7 +406,7 @@ const MyVoca = () => {
                 <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-4 px-2">보충 학습이 필요한 단어</h3>
                 <div className="space-y-2">
                   {quizResults.incorrectWords.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-4 bg-white dark:bg-[#1E1E1E] rounded-[8px] border border-zinc-100 dark:border-zinc-800 shadow-sm">
+                    <div key={idx} className="flex items-center justify-between p-4 bg-white dark:bg-[#1E1E1E] rounded-none border border-zinc-100 dark:border-zinc-800 shadow-sm">
                       <div className="flex items-center gap-3">
                         <span className="text-xl">{item.emoji}</span>
                         <div>
@@ -414,7 +414,7 @@ const MyVoca = () => {
                           <p className="text-xs text-rose-500 font-bold">{item.meaning || "보충 학습 필요"}</p>
                         </div>
                       </div>
-                      <button onClick={() => speak(item.word || item)} className="press p-3 bg-zinc-50 dark:bg-zinc-800 rounded-[6px] text-zinc-400 active:text-[#70011D]">
+                      <button onClick={() => speak(item.word || item)} className="press p-3 bg-zinc-50 dark:bg-zinc-800 rounded-none text-zinc-400 active:text-[#70011D]">
                         <i className="ph-bold ph-speaker-high text-lg"></i>
                       </button>
                     </div>
@@ -424,7 +424,7 @@ const MyVoca = () => {
             )}
 
             <button onClick={() => { setView('list'); setQuizResults(null); }}
-                    className="press w-full p-4 text-white rounded-[10px] font-bold shadow-md"
+                    className="press w-full p-4 text-white rounded-none font-bold shadow-md"
                     style={{ backgroundColor: themeColor }}>
               목록으로 돌아가기
             </button>

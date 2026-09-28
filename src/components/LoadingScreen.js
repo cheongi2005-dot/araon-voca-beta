@@ -65,9 +65,9 @@ const LoadingScreen = () => {
             <span className="text-[10px] font-black text-zinc-400 tracking-widest uppercase">Loading</span>
             <span className="text-[10px] font-black text-[#70011D] dark:text-[#FF4D4D]">{progress}%</span>
           </div>
-          <div className="w-full h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-[#70011D] dark:bg-[#FF4D4D] transition-all duration-300 ease-out rounded-full"
+          <div className="w-full h-1 bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+            <div
+              className="h-full bg-[#70011D] dark:bg-[#FF4D4D] transition-all duration-300 ease-out"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
