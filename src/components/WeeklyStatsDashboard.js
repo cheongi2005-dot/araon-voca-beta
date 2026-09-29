@@ -1,3 +1,4 @@
+import AraonIcon from './AraonIcon';
 import React, { useMemo } from 'react';
 import { LEVEL_CONFIG } from '../config/levelConfig';
 
@@ -89,13 +90,13 @@ const WeeklyStatsDashboard = ({ student, weekOffset }) => {
   const maxTime = Math.max(60, ...weeklyData.days.map(d => d.studyTime));
 
   return (
-    <div className="bg-white p-8 rounded-[40px] shadow-sm border border-indigo-50 mb-6 animate__animated animate__fadeIn">
+    <div className="bg-white p-8 rounded-[40px] shadow-none border border-indigo-50 mb-6 animate__animated animate__fadeIn">
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            <i className="ph-fill ph-trend-up text-indigo-500"></i> 주간 학습 성과
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <AraonIcon name="performance" size={22} /> 주간 학습 성과
           </h3>
-          <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">Weekly Learning Stats</p>
+          <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-1">Weekly Learning Stats</p>
         </div>
         <div className="flex gap-4">
           <div className="flex items-center gap-1.5">
@@ -128,24 +129,24 @@ const WeeklyStatsDashboard = ({ student, weekOffset }) => {
                     style={{ height: `${timeHeight}%` }}
                   ></div>
                 </div>
-                <span className="text-xs font-black text-slate-400">{day}</span>
+                <span className="text-xs font-bold text-slate-400">{day}</span>
               </div>
             );
           })}
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="bg-indigo-50/50 p-5 rounded-3xl border border-indigo-100/50">
-            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">총 맞춘 단어</p>
+          <div className="bg-indigo-50/50 p-5 rounded-lg border border-indigo-100/50">
+            <p className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mb-1">총 맞춘 단어</p>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-black text-indigo-600">{weeklyData.totalCorrectWords}</span>
+              <span className="text-2xl font-bold text-indigo-600">{weeklyData.totalCorrectWords}</span>
               <span className="text-xs font-bold text-indigo-400">개</span>
             </div>
           </div>
-          <div className="bg-emerald-50/50 p-5 rounded-3xl border border-emerald-100/50">
-            <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-1">총 학습 시간</p>
+          <div className="bg-emerald-50/50 p-5 rounded-lg border border-emerald-100/50">
+            <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest mb-1">총 학습 시간</p>
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl font-black text-emerald-600">{weeklyData.totalStudyTime}</span>
+              <span className="text-2xl font-bold text-emerald-600">{weeklyData.totalStudyTime}</span>
               <span className="text-xs font-bold text-emerald-500">분</span>
             </div>
           </div>

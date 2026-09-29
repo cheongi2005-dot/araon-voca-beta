@@ -1,3 +1,5 @@
+import AppHeader from '../components/AppHeader';
+import AraonIcon from '../components/AraonIcon';
 import React, { useState, useEffect } from 'react';
 import { auth } from '../firebase-config';
 import { signOut } from 'firebase/auth';
@@ -36,9 +38,9 @@ const StudentDashboardMobile = () => {
     if (!auth.currentUser) return <LoadingScreen />; // 곧 위 이펙트가 홈으로 이동시킴
     return (
       <div className="min-h-screen flex flex-col items-center justify-center dark:bg-[#0A0A0B] bg-[#F8F9FA] p-4">
-        <div className="bg-white dark:bg-[#1E1E1E] p-8 rounded-3xl shadow-sm text-center border border-slate-100 dark:border-zinc-800">
+        <div className="bg-white dark:bg-[#1E1E1E] p-8 rounded-lg shadow-none text-center border border-slate-100 dark:border-zinc-800">
           <i className="ph-fill ph-warning-circle text-4xl text-rose-500 mb-3"></i>
-          <h2 className="text-lg font-black text-slate-800 dark:text-white mb-2">데이터를 찾을 수 없습니다</h2>
+          <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2">데이터를 찾을 수 없습니다</h2>
           <p className="text-xs text-slate-500 dark:text-zinc-400 mb-6 leading-relaxed">
             로그인한 이메일과 일치하는 학생 정보가<br/>데이터베이스에 존재하지 않습니다.
           </p>
@@ -275,41 +277,17 @@ const StudentDashboardMobile = () => {
 
   // --- RENDER ---
   return (
-    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0B] p-4 font-sans antialiased transition-colors duration-500 pb-12" style={{ paddingTop: 'calc(16px + env(safe-area-inset-top))' }}>
+    <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0B] p-4 font-sans antialiased transition-colors duration-500 pb-12" >
       <div className="max-w-md mx-auto">
         
-          <header className="flex justify-between items-center mb-8 pt-2 px-1">
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => navigate('/')} 
-                className="p-2.5 bg-white dark:bg-[#1E1E1E] text-slate-400 dark:text-zinc-400 rounded-xl shadow-sm border border-slate-100 dark:border-zinc-800 active:scale-95 transition-all"
-              >
-                <i className="ph-bold ph-arrow-left text-lg"></i>
-              </button>
-              
-              <div>
-                <h1 className="text-xl font-black text-slate-800 dark:text-white leading-tight tracking-tight">
-                  나의 학습 리포트
-                </h1>
-                <p className="text-[11px] text-slate-400 dark:text-zinc-500 font-bold uppercase tracking-widest mt-0.5">
-                  {student?.name || '학생'} 
-                </p>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => setIsDark(!isDark)} 
-              className="p-3 bg-white dark:bg-[#1E1E1E] text-slate-500 dark:text-zinc-400 rounded-2xl shadow-sm border border-slate-100 dark:border-zinc-800 active:scale-90 transition-all"
-            >
-              <i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-xl`}></i>
-            </button>
-          </header>
+          <AppHeader isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} onBack={() => navigate('/')} />
+          <div className="py-6"><h1 className="text-xl font-bold dark:text-white">나의 학습 리포트</h1><p className="text-xs text-zinc-400 mt-1">{student?.name || '학생'}</p></div>
 
         {/* SECTION 1: 주간 학습 성과 */}
-        <div className="bg-white dark:bg-[#1E1E1E] p-5 rounded-3xl shadow-sm border border-indigo-50 dark:border-zinc-800/50 mb-4 transition-all">
+        <div className="bg-white dark:bg-[#1E1E1E] p-5 rounded-lg shadow-none border border-indigo-50 dark:border-zinc-800/50 mb-4 transition-all">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5 tracking-tight">
-              <i className="ph-fill ph-presentation-chart text-indigo-500 text-lg"></i> 주간 성과
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5 tracking-tight">
+              <AraonIcon name="performance" size={22} /> 주간 성과
             </h3>
             <div className="flex gap-1.5">
               <button onClick={() => setWeekOffset(weekOffset - 1)} className="p-2 bg-slate-50 dark:bg-zinc-800 rounded-lg dark:text-zinc-400 active:scale-90 transition-all"><i className="ph-bold ph-arrow-left text-sm"></i></button>
@@ -361,28 +339,28 @@ const StudentDashboardMobile = () => {
           
           <div className="flex justify-between border-t border-slate-100 dark:border-zinc-800/50 pt-2 px-1">
             {daysOfWeek.map((day, idx) => (
-              <div key={idx} className="text-[10px] font-black text-slate-400 dark:text-zinc-500 w-[12%] text-center">
+              <div key={idx} className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 w-[12%] text-center">
                 {day}
               </div>
             ))}
           </div>
 
           <div className="grid grid-cols-2 gap-3 mt-6">
-            <div className="bg-slate-50 dark:bg-[#252527] p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 shadow-sm flex flex-col justify-center items-center text-center">
-              <p className="text-[9px] font-black text-slate-400 dark:text-zinc-500 uppercase mb-1">Weekly Word</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white">{weeklyTotalWords}<span className="text-[10px] ml-0.5 font-bold">개</span></p>
+            <div className="bg-slate-50 dark:bg-[#252527] p-4 rounded-lg border border-slate-100 dark:border-zinc-800 shadow-none flex flex-col justify-center items-center text-center">
+              <p className="text-[9px] font-bold text-slate-400 dark:text-zinc-500 uppercase mb-1">Weekly Word</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{weeklyTotalWords}<span className="text-[10px] ml-0.5 font-bold">개</span></p>
             </div>
-            <div className="bg-emerald-50/40 dark:bg-emerald-900/10 p-4 rounded-2xl border border-emerald-100/50 dark:border-emerald-800/20 flex flex-col justify-center items-center text-center">
-              <p className="text-[9px] font-black text-emerald-500 uppercase mb-1">Weekly Time</p>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{weeklyTotalTime}<span className="text-[10px] ml-0.5 font-bold">분</span></p>
+            <div className="bg-emerald-50/40 dark:bg-emerald-900/10 p-4 rounded-lg border border-emerald-100/50 dark:border-emerald-800/20 flex flex-col justify-center items-center text-center">
+              <p className="text-[9px] font-bold text-emerald-500 uppercase mb-1">Weekly Time</p>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{weeklyTotalTime}<span className="text-[10px] ml-0.5 font-bold">분</span></p>
             </div>
           </div>
         </div>
 
         {/* SECTION 2: 주간 활동 현황 */}
-        <div className="bg-white dark:bg-[#1E1E1E] p-5 rounded-3xl shadow-sm border border-indigo-50 dark:border-zinc-800/50 transition-all">
-          <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5 mb-5">
-            <i className="ph-fill ph-list-dashes text-indigo-500 text-lg"></i> 상세 활동 내역
+        <div className="bg-white dark:bg-[#1E1E1E] p-5 rounded-lg shadow-none border border-indigo-50 dark:border-zinc-800/50 transition-all">
+          <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5 mb-5">
+            <AraonIcon name="activity" size={22} /> 상세 활동 내역
           </h3>
           
           <div className="flex flex-col gap-3">
@@ -394,9 +372,9 @@ const StudentDashboardMobile = () => {
               const hasActivity = wordActivities.length > 0 || solveActivities.length > 0 || mistakeActivities.length > 0;
 
               return (
-                <div key={dayIndex} className="bg-slate-50 dark:bg-zinc-900/50 p-3.5 rounded-2xl border border-slate-100 dark:border-zinc-800/50">
+                <div key={dayIndex} className="bg-slate-50 dark:bg-zinc-900/50 p-3.5 rounded-lg border border-slate-100 dark:border-zinc-800/50">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-xs font-black text-slate-700 dark:text-zinc-300">{dayName}요일</span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-zinc-300">{dayName}요일</span>
                     {!hasActivity && <span className="text-[10px] text-slate-400 dark:text-zinc-600 font-bold">활동 없음</span>}
                   </div>
                   
@@ -409,7 +387,7 @@ const StudentDashboardMobile = () => {
                             <span className="text-[11px] font-bold text-slate-500 w-12">단어학습</span>
                             <span className="text-[11px] text-slate-600 dark:text-zinc-400">
                               {act.day ? `Day ${act.day}` : '학습완료'} 
-                              {act.count > 1 && <span className="ml-1 text-indigo-500 font-black">({act.count})</span>}
+                              {act.count > 1 && <span className="ml-1 text-indigo-500 font-bold">({act.count})</span>}
                             </span>
                           </div>
                         ))}
@@ -425,7 +403,7 @@ const StudentDashboardMobile = () => {
                                 {act.day && <span className="mr-1 font-bold text-slate-500 dark:text-zinc-500">Day {act.day}</span>}
                                 {act.method ? `${getMethodInKorean(act.method)} ` : ''}
                                 {act.score !== undefined ? `${act.score}/${act.total || '?'}` : (act.isLegacy ? '완료' : '')}
-                                {act.count > 1 && <span className="ml-1 text-indigo-500 font-black">({act.count})</span>}
+                                {act.count > 1 && <span className="ml-1 text-indigo-500 font-bold">({act.count})</span>}
                               </span>
                             </div>
                           )
@@ -444,7 +422,7 @@ const StudentDashboardMobile = () => {
                                 {levelDisplayName && <span className="mr-1 font-bold text-slate-500 dark:text-zinc-500">[{levelDisplayName}]</span>}
                                 {act.method ? `${getMethodInKorean(act.method)} ` : ''}
                                 {act.score !== undefined ? `${act.score}/${act.total || '?'}` : '학습완료'}
-                                {act.count > 1 && <span className="ml-1 text-indigo-500 dark:text-indigo-400 font-black">({act.count})</span>}
+                                {act.count > 1 && <span className="ml-1 text-indigo-500 dark:text-indigo-400 font-bold">({act.count})</span>}
                               </span>
                             </div>
                           );

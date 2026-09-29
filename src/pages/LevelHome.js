@@ -1,3 +1,5 @@
+import AppHeader from '../components/AppHeader';
+import AraonIcon from '../components/AraonIcon';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase-config';
@@ -101,19 +103,12 @@ function LevelHome() {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
-      <header className="fixed top-0 left-0 right-0 z-30 flex flex-col bg-white dark:bg-[#1E1E1E] border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex items-center px-6 justify-between w-full max-w-md mx-auto h-16 flex-1">
-          <button onClick={() => navigate('/settings')} className="p-2 text-black dark:text-white active:opacity-70 rounded-full"><i className="ph-bold ph-caret-left text-2xl"></i></button>
-          <img src={isDark ? `${process.env.PUBLIC_URL}/Araon_logo_W.webp` : `${process.env.PUBLIC_URL}/Araon_logo.webp`} alt="ARAON" className="h-10 w-auto" />
-          <button onClick={() => setIsDark(!isDark)} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
-        </div>
-      </header>
-      <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
+      <AppHeader isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} onBack={() => navigate('/settings')} />
 
       <main className="flex-1 py-8 px-6 overflow-y-auto">
         <div className="mb-10 px-2">
-          <p className="text-indigo-500 text-[10px] font-black uppercase tracking-widest mb-1">Course Selection</p>
-          <h2 className="text-2xl font-black dark:text-white leading-tight tracking-tight">학습하실 레벨을<br/>선택해 주세요</h2>
+          <p className="text-indigo-500 text-[10px] font-bold uppercase tracking-widest mb-1">Course Selection</p>
+          <h2 className="text-2xl font-bold dark:text-white leading-tight tracking-tight">학습하실 레벨을<br/>선택해 주세요</h2>
         </div>
 
         <div className="flex flex-col gap-4 pb-10">
@@ -122,27 +117,27 @@ function LevelHome() {
             const isCurrent = currentLevelTitle === level.name;
 
             return (
-              <div key={level.id} onClick={() => handleLevelSelect(level)} className={`group block active:scale-[0.98] transition-all cursor-pointer border-2 rounded-[1.8rem] overflow-hidden ${isCurrent ? 'border-indigo-500 shadow-lg shadow-indigo-500/10' : 'border-transparent'}`}>
-                <div className="p-5 bg-white dark:bg-[#1E1E1E] shadow-sm relative">
+              <div key={level.id} onClick={() => handleLevelSelect(level)} className={`group block active:opacity-80 transition-all cursor-pointer border-2 rounded-lg overflow-hidden ${isCurrent ? 'border-indigo-500 shadow-none ' : 'border-transparent'}`}>
+                <div className="p-5 bg-white dark:bg-[#1E1E1E] shadow-none relative">
                   <div className="flex items-center justify-between relative z-10">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-sm" style={{ backgroundColor: level.color }}>
-                        {level.id === "00" ? <i className="ph-fill ph-headphones"></i> : level.id}
+                      <div className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-none" style={{ backgroundColor: level.color }}>
+                        {level.id === "00" ? <AraonIcon name="help" size={32} style={{ background: '#F8F1E5', borderRadius: 8 }} /> : level.id}
                       </div>
                       <div>
                         <div className="flex items-center gap-2 mb-0.5">
-                          <h3 className="text-[10px] font-black uppercase tracking-widest" style={{ color: level.color }}>{level.name}</h3>
-                          {isCurrent && <span className="text-[8px] font-black bg-indigo-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Current</span>}
+                          <h3 className="text-[10px] font-bold uppercase tracking-widest" style={{ color: level.color }}>{level.name}</h3>
+                          {isCurrent && <span className="text-[8px] font-bold bg-indigo-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Current</span>}
                         </div>
                         <p className="text-[16px] font-bold dark:text-white tracking-tight">{level.title} <span className="text-[11px] font-medium text-zinc-400 ml-0.5">{level.sub}</span></p>
                       </div>
                     </div>
-                    {isCurrent ? <i className="ph-fill ph-check-circle text-indigo-500 text-2xl"></i> : <i className="ph-bold ph-caret-right text-zinc-200 group-hover:text-zinc-400 transition-colors text-xl"></i>}
+                    {isCurrent ? <AraonIcon name="check" size={28} /> : <i className="ph-bold ph-caret-right text-zinc-200 group-hover:text-zinc-400 transition-colors text-xl"></i>}
                   </div>
                   <div className="mt-3 pt-3 border-t border-zinc-50 dark:border-zinc-800/50">
                     <div className="flex justify-between items-center mb-2 px-0.5">
                       <span className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase tracking-tighter">Progress</span>
-                      <span className="text-[10px] font-black text-zinc-400">{progress.completed} / {level.days} {level.name === "Phonics" ? "Stages" : "Days"}</span>
+                      <span className="text-[10px] font-bold text-zinc-400">{progress.completed} / {level.days} {level.name === "Phonics" ? "Stages" : "Days"}</span>
                     </div>
                     <div className="w-full h-1.5 bg-zinc-50 dark:bg-zinc-900 rounded-full overflow-hidden">
                       <div className="h-full transition-all duration-1000 rounded-full" style={{ width: `${progress.percent}%`, backgroundColor: level.color, opacity: progress.percent > 0 ? 1 : 0.3 }} />

@@ -1,3 +1,6 @@
+import QuizModeIcon from '../components/QuizModeIcon';
+import SpeakerIcon from '../components/SpeakerIcon';
+import AppHeader from '../components/AppHeader';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase-config';
@@ -226,20 +229,13 @@ const LevelTemplate = () => {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
-      <header className="fixed top-0 left-0 right-0 z-20 flex flex-col border-b border-black/10 shadow-sm transition-colors" style={{ backgroundColor: config.color, paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex-1 flex items-center px-4 justify-between w-full max-w-md mx-auto h-16">
-          <button onClick={() => view === 'home' ? navigate('/') : setView(view === 'quiz' ? 'modeSelect' : 'home')} className="p-2 text-white"><i className="ph-bold ph-caret-left text-2xl"></i></button>
-          <img src={`${process.env.PUBLIC_URL}/Araon_logo_b.png`} alt="ARAON" className="h-7 mx-auto invert brightness-200" />
-          <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 text-white"><i className={`ph-bold ${isDarkMode ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
-        </div>
-      </header>
-      <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
+      <AppHeader whiteContent={config.id === '05' || config.id === '06'} themeColor={config.color} isDark={isDarkMode} onToggleTheme={() => setIsDarkMode(!isDarkMode)} onBack={() => view === 'home' ? navigate('/') : setView(view === 'quiz' ? 'modeSelect' : 'home')} />
 
       <main className="flex-1 p-6 overflow-y-auto">
         {view === 'home' && (
           <div className="animate__animated animate__fadeIn">
-            <div className="p-8 rounded-2xl text-white shadow-md mb-8" style={{ backgroundColor: config.color }}>
-              <div className="flex justify-between items-center mb-3"><p className="text-white/70 text-[10px] font-bold uppercase">{config.title} Mastery</p><span className="text-xs font-black">{completedDaysCount} / {dayKeys.length} 완료</span></div>
+            <div className="p-8 rounded-lg text-white shadow-none mb-8" style={{ backgroundColor: config.color }}>
+              <div className="flex justify-between items-center mb-3"><p className="text-white/70 text-[10px] font-bold uppercase">{config.title} Mastery</p><span className="text-xs font-bold">{completedDaysCount} / {dayKeys.length} 완료</span></div>
               <div className="w-full h-1.5 bg-black/30 rounded-full overflow-hidden"><div className="h-full bg-white transition-all duration-1000" style={{ width: `${(completedDaysCount / dayKeys.length) * 100}%` }}></div></div>
             </div>
 
@@ -250,7 +246,7 @@ const LevelTemplate = () => {
                   return (
                     <>
                       <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: isCompleted ? config.color : '#cbd5e1' }}></div>
-                      <h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200">{isFinishedToday ? "오늘의 학습 완료! ✨" : "오늘의 학습"}</h2>
+                      <h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">{isFinishedToday ? "오늘의 학습 완료! ✨" : "오늘의 학습"}</h2>
                     </>
                   );
                 })()}
@@ -258,10 +254,10 @@ const LevelTemplate = () => {
               {(() => {
                 const isCompleted = dayHistory[String(topDay)]?.completed || dayHistory[Number(topDay)]?.completed;
                 return (
-                  <button onClick={() => selectDay(topDay)} className="w-full p-6 border-2 rounded-[1.8rem] flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-sm active:scale-[0.98] transition-all relative overflow-hidden" style={{ borderColor: isCompleted ? `${config.color}40` : '#e2e8f0' }}>
+                  <button onClick={() => selectDay(topDay)} className="w-full p-6 border-2 rounded-lg flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-none active:opacity-80 transition-all relative overflow-hidden" style={{ borderColor: isCompleted ? `${config.color}40` : '#e2e8f0' }}>
                     <div className="flex items-center text-left relative z-10">
-                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center mr-5 text-white font-black text-xl shadow-inner" style={{ backgroundColor: isCompleted ? config.color : '#cbd5e1' }}>D{topDay}</div>
-                      <div><h3 className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: isCompleted ? config.color : '#94a3b8' }}>{isCompleted ? "Completed" : "Up Next"}</h3><p className="text-lg font-bold tracking-tight dark:text-white">{loadedData.titles[topDay]}</p></div>
+                      <div className="w-14 h-14 rounded-lg flex items-center justify-center mr-5 text-white font-bold text-xl shadow-inner" style={{ backgroundColor: isCompleted ? config.color : '#cbd5e1' }}>D{topDay}</div>
+                      <div><h3 className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: isCompleted ? config.color : '#94a3b8' }}>{isCompleted ? "Completed" : "Up Next"}</h3><p className="text-lg font-bold tracking-tight dark:text-white">{loadedData.titles[topDay]}</p></div>
                     </div>
                     <i className={`ph-bold ${isCompleted ? 'ph-check-circle' : 'ph-caret-right'} text-2xl`} style={{ color: isCompleted ? config.color : '#cbd5e1' }}></i>
                   </button>
@@ -285,14 +281,14 @@ const LevelTemplate = () => {
                       if (isLocked) { alert('🔒 이전 Day를 먼저 완료해야 다음 단계로 넘어갈 수 있어요!'); return; }
                       selectDay(d);
                     }} 
-                    className={`w-full p-6 border rounded-2xl flex items-center justify-between shadow-sm transition-all duration-300
+                    className={`w-full p-6 border rounded-lg flex items-center justify-between shadow-none transition-all duration-300
                       ${isLocked 
                         ? 'bg-zinc-50 dark:bg-zinc-900/50 border-transparent opacity-60 grayscale' 
                         : 'bg-white dark:bg-[#1E1E1E] border-zinc-100 dark:border-zinc-800 hover:scale-[0.98] active:scale-95'}`}
                   >
                     <div className="flex items-center">
                       <div 
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center mr-4 text-white font-black 
+                        className={`w-12 h-12 rounded-xl flex items-center justify-center mr-4 text-white font-bold 
                           ${isLocked ? 'bg-zinc-300 dark:bg-zinc-700' : ''}`} 
                         style={!isLocked ? { backgroundColor: isCompleted ? config.color : '#cbd5e1' } : {}}
                       >
@@ -318,24 +314,24 @@ const LevelTemplate = () => {
 
         {view === 'dayHome' && (
           <div className="animate__animated animate__fadeInUp pt-10 text-center">
-            <div className="w-20 h-20 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-md font-black text-2xl" style={{ backgroundColor: config.color }}>D{selectedDay}</div>
+            <div className="w-20 h-20 text-white rounded-lg flex items-center justify-center mx-auto mb-6 shadow-none font-bold text-2xl" style={{ backgroundColor: config.color }}>D{selectedDay}</div>
             <h2 className="text-2xl font-bold dark:text-white uppercase mb-10">{loadedData.titles[selectedDay]}</h2>
             <div className="space-y-4">
-              <button onClick={() => setView('study')} className="w-full p-6 bg-white dark:bg-[#1E1E1E] border-2 rounded-2xl flex items-center shadow-sm" style={{ borderColor: config.color }}><div className="w-12 h-12 rounded-xl flex items-center justify-center mr-4" style={{ backgroundColor: `${config.color}20`, color: config.color }}><i className="ph-fill ph-book-open text-2xl"></i></div><div className="text-left font-bold dark:text-slate-100">단어 학습</div></button>
-              <button onClick={() => setView('modeSelect')} className="w-full p-6 text-white rounded-2xl flex items-center shadow-md" style={{ backgroundColor: config.color }}><div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mr-4"><i className="ph-fill ph-lightning text-2xl"></i></div><div className="text-left font-bold">퀴즈 도전</div></button>
-              <button onClick={() => setView('dayMistakes')} disabled={dayMistakes.length === 0} className="w-full p-6 bg-white dark:bg-[#1E1E1E] border-2 rounded-2xl flex items-center shadow-sm border-[#70011D]/30 disabled:opacity-50"><div className="w-12 h-12 rounded-xl flex items-center justify-center mr-4" style={{ backgroundColor: '#70011D20', color: '#70011D' }}><i className="ph-fill ph-warning-circle text-2xl"></i></div><div className="text-left font-bold text-[#70011D] flex-1">오답 복습 <span className="ml-2 text-[10px] px-2 py-0.5 bg-[#70011D] text-white rounded-full font-bold">{dayMistakes.length}</span></div></button>
+              <button onClick={() => setView('study')} className="w-full p-6 bg-white dark:bg-[#1E1E1E] border-2 rounded-lg flex items-center shadow-none" style={{ borderColor: config.color }}><div className="w-12 h-12 rounded-xl flex items-center justify-center mr-4" style={{ backgroundColor: `${config.color}20`, color: config.color }}><i className="ph-fill ph-book-open text-2xl"></i></div><div className="text-left font-bold dark:text-slate-100">단어 학습</div></button>
+              <button onClick={() => setView('modeSelect')} className="w-full p-6 text-white rounded-lg flex items-center shadow-none" style={{ backgroundColor: config.color }}><div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mr-4"><i className="ph-fill ph-lightning text-2xl"></i></div><div className="text-left font-bold">퀴즈 도전</div></button>
+              <button onClick={() => setView('dayMistakes')} disabled={dayMistakes.length === 0} className="w-full p-6 bg-white dark:bg-[#1E1E1E] border-2 rounded-lg flex items-center shadow-none border-[#70011D]/30 disabled:opacity-50"><div className="w-12 h-12 rounded-xl flex items-center justify-center mr-4" style={{ backgroundColor: '#70011D20', color: '#70011D' }}><i className="ph-fill ph-warning-circle text-2xl"></i></div><div className="text-left font-bold text-[#70011D] flex-1">오답 복습 <span className="ml-2 text-[10px] px-2 py-0.5 bg-[#70011D] text-white rounded-full font-bold">{dayMistakes.length}</span></div></button>
             </div>
           </div>
         )}
 
         {view === 'modeSelect' && (
           <div className="animate__animated animate__fadeInUp pt-6 space-y-6">
-            <div className="text-center"><h2 className="text-xl font-black dark:text-white">퀴즈 모드 선택</h2><p className="text-zinc-400 text-sm mt-1">원하는 스타일로 복습하세요</p></div>
+            <div className="text-center"><h2 className="text-xl font-bold dark:text-white">퀴즈 모드 선택</h2><p className="text-zinc-400 text-sm mt-1">원하는 스타일로 복습하세요</p></div>
             <div className="space-y-3">
               {[ { id: 'choice', title: '4지선다형', icon: 'ph-list-numbers', color: 'bg-amber-100 text-amber-600' }, { id: 'letter', title: '철자 채우기', icon: 'ph-textbox', color: 'bg-blue-100 text-blue-600' }, { id: 'full', title: '전체 받아쓰기', icon: 'ph-keyboard', color: 'bg-purple-100 text-purple-600' } ].map(m => (
-                <button key={m.id} onClick={() => { if (currentDayData.length === 0) { alert('⚠️ 문제 데이터를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'); return; } setShuffledQuestions([...currentDayData].sort(() => Math.random() - 0.5)); setQuizMode(m.id); setView('quiz'); }} className="w-full p-5 bg-white dark:bg-[#1E1E1E] rounded-2xl border flex items-center justify-between shadow-sm">
-                  <div className="flex items-center gap-5"><div className={`w-12 h-12 rounded-2xl ${m.color} flex items-center justify-center text-2xl`}><i className={`ph-fill ${m.icon}`}></i></div><p className="font-bold dark:text-white">{m.title}</p></div>
-                  <div className="text-right"><p className="text-[8px] font-black text-zinc-300 uppercase">Best</p><span className="text-xs font-black text-zinc-400">{dayHistory[selectedDay]?.scores?.[m.id] || 0}/{currentDayData.length}</span></div>
+                <button key={m.id} onClick={() => { if (currentDayData.length === 0) { alert('⚠️ 문제 데이터를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'); return; } setShuffledQuestions([...currentDayData].sort(() => Math.random() - 0.5)); setQuizMode(m.id); setView('quiz'); }} className="w-full p-5 bg-white dark:bg-[#1E1E1E] rounded-lg border flex items-center justify-between shadow-none">
+                  <div className="flex items-center gap-5"><div className={`w-12 h-12 rounded-lg ${m.color} flex items-center justify-center text-2xl`}><QuizModeIcon mode={m.id} /></div><p className="font-bold dark:text-white">{m.title}</p></div>
+                  <div className="text-right"><p className="text-[8px] font-bold text-zinc-300 uppercase">Best</p><span className="text-xs font-bold text-zinc-400">{dayHistory[selectedDay]?.scores?.[m.id] || 0}/{currentDayData.length}</span></div>
                 </button>
               ))}
             </div>
@@ -347,13 +343,13 @@ const LevelTemplate = () => {
             <div className="mb-6 text-center font-bold dark:text-white">{view === 'study' ? `${loadedData.titles[selectedDay]} 단어 학습` : "내 오답 리스트"}</div>
             <div className="space-y-3">
               {(view === 'study' ? currentDayData : currentDayData.filter(i => dayMistakes.includes(i.word))).map((item, i) => (
-                <div key={i} className="p-5 bg-white dark:bg-[#1E1E1E] rounded-2xl border flex items-center justify-between shadow-sm">
+                <div key={i} className="p-5 bg-white dark:bg-[#1E1E1E] rounded-lg border flex items-center justify-between shadow-none">
                   <div className="flex items-center gap-3 text-left">{item.emoji && <span className="text-2xl">{item.emoji}</span>}<div><p className="text-xl font-bold dark:text-white">{item.word}</p><p className="text-sm text-zinc-400">{item.meaning}</p></div></div>
-                  <button onClick={() => speak(item.word)} className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${config.color}15`, color: config.color }}><i className="ph-bold ph-speaker-high text-xl"></i></button>
+                  <button onClick={() => speak(item.word)} className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${config.color}15`, color: config.color }}><SpeakerIcon size={24} /></button>
                 </div>
               ))}
             </div>
-            <button onClick={() => { if(view === 'study') recordActivity('study'); setView('modeSelect'); }} className="w-full p-6 mt-8 rounded-[2rem] font-black text-white shadow-lg" style={{ backgroundColor: config.color }}>학습 완료! 퀴즈 도전하기</button>
+            <button onClick={() => { if(view === 'study') recordActivity('study'); setView('modeSelect'); }} className="w-full p-6 mt-8 rounded-lg font-bold text-white shadow-none" style={{ backgroundColor: config.color }}>학습 완료! 퀴즈 도전하기</button>
           </div>
         )}
 
@@ -394,16 +390,16 @@ const LevelTemplate = () => {
               const nextDay = (currentIndex !== -1 && currentIndex + 1 < dayKeys.length) ? dayKeys[currentIndex + 1] : null;
               return (
                 <>
-                  <div className="w-32 h-32 bg-white dark:bg-[#1E1E1E] rounded-3xl flex items-center justify-center shadow-xl border-2 mb-10" style={{ borderColor: config.color }}><span className="text-7xl">{msg.e}</span></div>
-                  <h2 className="text-4xl font-black mb-2 dark:text-white tracking-tighter">{msg.t}</h2><p className="text-zinc-400 font-bold mb-10">{msg.c}</p>
-                  <div className="w-full bg-white dark:bg-[#1E1E1E] rounded-3xl p-8 shadow-sm border mb-10 text-left relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-1.5" style={{ backgroundColor: config.color }}></div>
-                    <p className="text-[10px] font-black text-zinc-400 uppercase mb-1">Total Score</p><span className="text-6xl font-black" style={{ color: config.color }}>{finalScore}</span><span className="text-xl font-bold text-zinc-300"> / {currentDayData.length}</span>
+                  <div className="w-32 h-32 bg-white dark:bg-[#1E1E1E] rounded-lg flex items-center justify-center shadow-none border-2 mb-10" style={{ borderColor: config.color }}><span className="text-7xl">{msg.e}</span></div>
+                  <h2 className="text-4xl font-bold mb-2 dark:text-white tracking-tighter">{msg.t}</h2><p className="text-zinc-400 font-bold mb-10">{msg.c}</p>
+                  <div className="w-full bg-white dark:bg-[#1E1E1E] rounded-lg p-8 shadow-none border mb-10 text-left relative overflow-hidden"><div className="absolute top-0 left-0 w-full h-1.5" style={{ backgroundColor: config.color }}></div>
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase mb-1">Total Score</p><span className="text-6xl font-bold" style={{ color: config.color }}>{finalScore}</span><span className="text-xl font-bold text-zinc-300"> / {currentDayData.length}</span>
                     <div className="w-full h-3 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden mt-6"><div className="h-full" style={{ width: `${perf * 100}%`, backgroundColor: config.color }}></div></div>
                   </div>
                   <div className="w-full space-y-3">
                     {perf >= 0.8 ? (
-                      nextDay ? <button onClick={() => selectDay(nextDay)} className="w-full p-6 text-white rounded-[2rem] font-black text-xl shadow-lg" style={{ backgroundColor: config.color }}>다음 Day 도전하기 🚀</button> : <button onClick={() => setView('home')} className="w-full p-6 text-white rounded-[2rem] font-black text-xl shadow-lg" style={{ backgroundColor: config.color }}>레벨 마스터! 목록으로</button>
-                    ) : <button onClick={() => navigate('/my-voca')} className="w-full p-6 text-white rounded-[2rem] font-black text-xl shadow-lg" style={{ backgroundColor: '#70011D' }}>나의 단어장에서 복습하기 ✍️</button>}
+                      nextDay ? <button onClick={() => selectDay(nextDay)} className="w-full p-6 text-white rounded-lg font-bold text-xl shadow-none" style={{ backgroundColor: config.color }}>다음 Day 도전하기 🚀</button> : <button onClick={() => setView('home')} className="w-full p-6 text-white rounded-lg font-bold text-xl shadow-none" style={{ backgroundColor: config.color }}>레벨 마스터! 목록으로</button>
+                    ) : <button onClick={() => navigate('/my-voca')} className="w-full p-6 text-white rounded-lg font-bold text-xl shadow-none" style={{ backgroundColor: '#70011D' }}>나의 단어장에서 복습하기 ✍️</button>}
                     <button onClick={() => setView('home')} className="w-full py-4 text-zinc-400 font-bold text-sm">전체 목록으로 가기</button>
                   </div>
                 </>

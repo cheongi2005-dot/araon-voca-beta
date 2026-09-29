@@ -2,12 +2,11 @@
 <html lang="ko">
     <head>
         <meta charset="utf-8"/>
+        <link rel="stylesheet" href="%PUBLIC_URL%/fonts.css" />
         <link rel="icon" href="/favicon.ico"/>
         <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
         <!-- 렌더 블로킹 방지: print 미디어로 우선순위 낮춰 비동기 로드 후 onload 시 all로 전환 (font-display: swap 이미 적용된 폰트라 FOIT 없이 안전) -->
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" crossorigin media="print" onload="this.media='all'" />
-        <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" crossorigin /></noscript>
         <meta name="theme-color" content="#F8F9FA"/>
         <meta name="description" content="아라온 스쿨 영단어 학습 시스템"/>
         <link rel="manifest" href="/site.webmanifest"/>
@@ -39,7 +38,7 @@
         <script src="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1" defer crossorigin="anonymous"></script>
         <style>
             body {
-                font-family: Pretendard,sans-serif;
+                font-family: 'Fraunces', 'Wanted Sans', sans-serif;
                 -webkit-tap-highlight-color: transparent;
                 overscroll-behavior-y: none;
                 background-color: #f8f9fa;
@@ -59,7 +58,7 @@
                 #initial-loader {
                     position: fixed; inset: 0; z-index: 9999;
                     display: flex; flex-direction: column; align-items: center; justify-content: center;
-                    padding: 2.5rem; background-color: #F8F9FA; transition: background-color 0.5s; font-family: Pretendard, sans-serif;
+                    padding: 2.5rem; background-color: #F8F9FA; transition: background-color 0.5s; font-family: 'Fraunces', 'Wanted Sans', sans-serif;
                 }
                 #initial-loader .loader-box { width: 100%; max-width: 20rem; display: flex; flex-direction: column; align-items: center; }
                 #initial-loader .qa-section { width: 100%; margin-bottom: 4rem; }

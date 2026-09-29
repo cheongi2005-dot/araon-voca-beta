@@ -1,3 +1,5 @@
+import AppHeader from '../components/AppHeader';
+import AraonIcon, { rankIconName } from '../components/AraonIcon';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { db, auth } from '../firebase-config';
 import { collection, getDocs, query, limit, getCountFromServer } from "firebase/firestore";
@@ -160,26 +162,26 @@ const RankingPage = () => {
   const getRankBadge = (lwRank, tab) => {
     if (!lwRank || lwRank > 10) return null;
     if (tab === 'passion') {
-      if (lwRank === 1) return { emoji: '🐐', label: 'GOAT', color: '#FFD700', isSmall: false, animate: true };
-      if (lwRank === 2) return { emoji: '🔥', label: 'All-In', color: '#FF4500', isSmall: false, animate: true };
-      if (lwRank === 3) return { emoji: '⚡', label: 'Clutch', color: '#FFE500', isSmall: false, animate: true };
-      if (lwRank === 4) return { emoji: '🔥', label: 'On Fire', color: '#FF6B35', isSmall: true, animate: false };
-      if (lwRank === 5) return { emoji: '📈', label: 'Rising', color: '#FFAA80', isSmall: true, animate: false };
-      return { emoji: '⭐', label: 'TOP 10', color: '#71717a', isSmall: true, animate: false };
+      if (lwRank === 1) return { icon: rankIconName(lwRank), label: 'GOAT', color: '#81364F', isSmall: false, animate: false };
+      if (lwRank === 2) return { icon: rankIconName(lwRank), label: 'All-In', color: '#81364F', isSmall: false, animate: false };
+      if (lwRank === 3) return { icon: rankIconName(lwRank), label: 'Clutch', color: '#81364F', isSmall: false, animate: false };
+      if (lwRank === 4) return { icon: rankIconName(lwRank), label: 'On Fire', color: '#81364F', isSmall: true, animate: false };
+      if (lwRank === 5) return { icon: rankIconName(lwRank), label: 'Rising', color: '#81364F', isSmall: true, animate: false };
+      return { icon: rankIconName(lwRank), label: 'TOP 10', color: '#71717a', isSmall: true, animate: false };
     }
     if (tab === 'level') {
-      if (lwRank === 1) return { emoji: '💎', label: 'Dominant', color: '#00BFFF', isSmall: false, animate: true };
-      if (lwRank === 2) return { emoji: '🏅', label: 'Elite', color: '#7B2FBE', isSmall: false, animate: true };
-      if (lwRank === 3) return { emoji: '🛡️', label: 'Proven', color: '#1B3A8C', isSmall: false, animate: true };
-      if (lwRank === 4) return { emoji: '📊', label: 'Ranked', color: '#4A90D9', isSmall: true, animate: false };
-      if (lwRank === 5) return { emoji: '🎮', label: 'Leveled', color: '#6C8EAD', isSmall: true, animate: false };
+      if (lwRank === 1) return { icon: rankIconName(lwRank), label: 'Dominant', color: '#81364F', isSmall: false, animate: false };
+      if (lwRank === 2) return { icon: rankIconName(lwRank), label: 'Elite', color: '#81364F', isSmall: false, animate: false };
+      if (lwRank === 3) return { icon: rankIconName(lwRank), label: 'Proven', color: '#81364F', isSmall: false, animate: false };
+      if (lwRank === 4) return { icon: rankIconName(lwRank), label: 'Ranked', color: '#81364F', isSmall: true, animate: false };
+      if (lwRank === 5) return { icon: rankIconName(lwRank), label: 'Leveled', color: '#81364F', isSmall: true, animate: false };
       return null;
     }
-    if (lwRank === 1) return { emoji: '👑', label: 'LEGEND', style: 'text-gold-metallic', isSmall: false, animate: true };
-    if (lwRank === 2) return { emoji: '🥈', label: 'CHAMP', style: 'text-silver-metallic', isSmall: false, animate: true };
-    if (lwRank === 3) return { emoji: '🥉', label: 'EXPERT', style: 'text-bronze-metallic', isSmall: false, animate: true };
-    if (lwRank <= 5) return { emoji: '✨', label: 'TOP 5', color: '#71717a', isSmall: true, animate: false };
-    return { emoji: '⭐', label: 'TOP 10', color: '#71717a', isSmall: true, animate: false };
+    if (lwRank === 1) return { icon: rankIconName(lwRank), label: 'LEGEND', color: '#81364F', isSmall: false, animate: false };
+    if (lwRank === 2) return { icon: rankIconName(lwRank), label: 'CHAMP', color: '#81364F', isSmall: false, animate: false };
+    if (lwRank === 3) return { icon: rankIconName(lwRank), label: 'EXPERT', color: '#81364F', isSmall: false, animate: false };
+    if (lwRank <= 5) return { icon: rankIconName(lwRank), label: 'TOP 5', color: '#71717a', isSmall: true, animate: false };
+    return { icon: rankIconName(lwRank), label: 'TOP 10', color: '#71717a', isSmall: true, animate: false };
   };
 
   const getTopPercent = (rank, total) => {
@@ -188,14 +190,14 @@ const RankingPage = () => {
   };
 
   const renderMyRankCard = () => (
-    <div className="p-6 border rounded-2xl flex items-center bg-white dark:bg-[#1C1C1E] border-zinc-100 dark:border-zinc-800 shadow-sm">
+    <div className="p-6 border rounded-lg flex items-center bg-white dark:bg-[#1C1C1E] border-zinc-100 dark:border-zinc-800 shadow-none">
       {myRankInfo ? (
         <>
-          <div className="w-12 h-12 bg-[#FDF2F2] dark:bg-[#321B1B] rounded-2xl flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 bg-[#FDF2F2] dark:bg-[#321B1B] rounded-lg flex items-center justify-center flex-shrink-0">
             {myRankInfo?.rank <= 3 ? (
-              <span className="text-2xl">{myRankInfo.rank === 1 ? '🥇' : myRankInfo.rank === 2 ? '🥈' : '🥉'}</span>
+              <span className="text-2xl"><AraonIcon name={rankIconName(myRankInfo.rank)} size={32} /></span>
             ) : (
-              <span className="text-[#70011D] dark:text-[#FF4D4D] font-black text-lg italic">
+              <span className="text-[#70011D] dark:text-[#FF4D4D] font-bold text-lg italic">
                 {myRankInfo?.rank}
                 <span className="text-[10px] not-italic ml-0.5">
                   {myRankInfo?.rank % 10 === 1 && myRankInfo?.rank % 100 !== 11 ? 'st' :
@@ -207,14 +209,14 @@ const RankingPage = () => {
           </div>
           <div className="ml-4 flex-1">
             <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-[10px] font-black text-[#70011D] dark:text-[#FF4D4D] uppercase tracking-widest">{getTabLabel(activeTab)}</span>
-              {myRankInfo.isLastWeekChamp && <span className="text-[14px] animate-bounce">👑</span>}
+              <span className="text-[10px] font-bold text-[#70011D] dark:text-[#FF4D4D] uppercase tracking-widest">{getTabLabel(activeTab)}</span>
+              {myRankInfo.isLastWeekChamp && <AraonIcon name="crown" size={18} />}
               <span className="px-2 py-0.5 bg-[#FDF2F2] dark:bg-[#70011D]/30 text-[#70011D] dark:text-[#FF4D4D] rounded-full text-[9px] font-bold">
                 상위 {getTopPercent(myRankInfo?.rank, totalUsers)}%
               </span>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-2xl font-black dark:text-white">{myRankInfo?.rank}위</span>
+              <span className="text-2xl font-bold dark:text-white">{myRankInfo?.rank}위</span>
               <span className="text-xs font-bold text-zinc-400">
                 / {totalUsers}명 | {myRankInfo?.score}{activeTab === 'passion' ? ' 분' : activeTab === 'hall' ? ' p' : ' 단어'}
               </span>
@@ -258,22 +260,15 @@ const RankingPage = () => {
         }
       `}</style>
 
-      <header className="fixed top-0 left-0 right-0 z-20 flex flex-col bg-white dark:bg-[#1E1E1E] border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex-1 flex items-center px-4 justify-between w-full max-w-md mx-auto h-16">
-          <button onClick={() => navigate('/')} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className="ph-bold ph-caret-left text-2xl"></i></button>
-          <img src={isDark ? `${process.env.PUBLIC_URL}/Araon_logo_W.webp` : `${process.env.PUBLIC_URL}/Araon_logo.webp`} alt="ARAON" className="h-10 w-auto" />
-          <button onClick={() => setIsDark(!isDark)} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
-        </div>
-      </header>
+      <AppHeader isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} onBack={() => navigate('/')} />
       <div className="max-w-md mx-auto">
-        <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
 
         <div className="p-6">
           <div className="mb-6">
             <div className="grid grid-cols-3 gap-2">
-              {[ { id: 'level', l: '레벨 챔프', i: 'ph-medal' }, { id: 'passion', l: '열정왕', i: 'ph-fire' }, { id: 'hall', l: '전체 랭킹', i: 'ph-trophy' } ].map(t => (
-                <button key={t.id} onClick={() => setActiveTab(t.id)} className={`py-3.5 rounded-2xl text-[11px] font-black transition-all flex flex-col items-center gap-1 border ${activeTab === t.id ? 'bg-[#70011D] text-white border-[#70011D] shadow-lg shadow-[#70011D]/20' : 'bg-white dark:bg-[#1C1C1E] text-zinc-400 border-zinc-200 dark:border-zinc-800'}`}>
-                  <i className={`ph-bold ${t.i} text-xl`}></i>{t.l}
+              {[ { id: 'level', l: '레벨 챔프', i: 'crown' }, { id: 'passion', l: '열정왕', i: 'passion' }, { id: 'hall', l: '전체 랭킹', i: 'ranking' } ].map(t => (
+                <button key={t.id} onClick={() => setActiveTab(t.id)} className={`py-3.5 rounded-lg text-[11px] font-bold transition-all flex flex-col items-center gap-1 border ${activeTab === t.id ? 'bg-[#70011D] text-white border-[#70011D] shadow-none ' : 'bg-white dark:bg-[#1C1C1E] text-zinc-400 border-zinc-200 dark:border-zinc-800'}`}>
+                  <AraonIcon name={t.i} size={26} className="rounded-md bg-[#F1EBE2] p-0.5" />{t.l}
                 </button>
               ))}
             </div>
@@ -286,7 +281,7 @@ const RankingPage = () => {
                   <button 
                     key={lvl.title} 
                     onClick={() => setSelectedLevel(lvl.title)} 
-                    className={`py-3 rounded-xl text-[10px] font-black transition-all border leading-tight flex flex-col items-center justify-center gap-0.5 h-12 ${selectedLevel === lvl.title ? 'bg-[#70011D] text-white border-[#70011D] shadow-md' : 'bg-white dark:bg-[#1C1C1E] text-zinc-400 border-zinc-200 dark:border-zinc-800'}`}
+                    className={`py-3 rounded-xl text-[10px] font-bold transition-all border leading-tight flex flex-col items-center justify-center gap-0.5 h-12 ${selectedLevel === lvl.title ? 'bg-[#70011D] text-white border-[#70011D] shadow-none' : 'bg-white dark:bg-[#1C1C1E] text-zinc-400 border-zinc-200 dark:border-zinc-800'}`}
                   >
                     <span className="truncate w-full text-center">{lvl.subTitle.split(' (')[0]}</span>
                     {lvl.subTitle.includes('(') && (
@@ -301,10 +296,10 @@ const RankingPage = () => {
           )}
 
           {lastWeekTop3.length > 0 && (
-            <div className="mb-8 p-5 rounded-3xl bg-gradient-to-br from-[#70011D]/5 to-transparent border border-[#70011D]/10 dark:border-[#70011D]/20">
+            <div className="mb-8 p-5 rounded-lg bg-gradient-to-br from-[#70011D]/5 to-transparent border border-[#70011D]/10 dark:border-[#70011D]/20">
               <div className="flex justify-between items-start mb-6">
-                <h2 className="text-[11px] font-black text-[#70011D] flex items-center gap-2 uppercase tracking-tight">
-                  <i className="ph-fill ph-crown text-lg"></i> 지난주 {getTabLabel(activeTab)} Top 3
+                <h2 className="text-[11px] font-bold text-[#70011D] flex items-center gap-2 uppercase tracking-tight">
+                  <AraonIcon name="crown" size={20} /> 지난주 {getTabLabel(activeTab)} Top 3
                 </h2>
                 <div className="grid grid-cols-2 gap-x-3 gap-y-1 items-end opacity-80">
                   {[1, 2, 3, 4, 5, 10].map(r => {
@@ -312,9 +307,9 @@ const RankingPage = () => {
                     if (!b) return null;
                     const label = r === 10 ? 'TOP 10' : r === 5 ? 'TOP 5' : `${r}${r === 1 ? 'st' : r === 2 ? 'nd' : r === 3 ? 'rd' : 'th'}`;
                     return (
-                      <div key={r} className="flex items-center gap-1.5 text-[7px] font-black text-[#70011D]">
+                      <div key={r} className="flex items-center gap-1.5 text-[7px] font-bold text-[#70011D]">
                         <span className="opacity-40">{label}</span>
-                        <span>{b.emoji}</span>
+                        <AraonIcon name={b.icon} size={16} />
                         <span className="tracking-tighter">{b.label}</span>
                       </div>
                     );
@@ -328,19 +323,14 @@ const RankingPage = () => {
                   const rank = idx === 0 ? 2 : idx === 1 ? 1 : 3;
                   const isFirst = rank === 1;
                   const isThird = rank === 3;
-                  const getTabEmoji = (r) => {
-                    if (activeTab === 'passion') return r === 1 ? '🐐' : r === 2 ? '🔥' : '⚡';
-                    if (activeTab === 'level') return r === 1 ? '💎' : r === 2 ? '🏅' : '🛡️';
-                    return r === 1 ? '👑' : r === 2 ? '🥈' : '🥉';
-                  };
 
                   return (
                     <div key={user.id} className="flex-1 flex flex-col items-center">
                       <div className="flex flex-col items-center mb-2">
-                        <span className={`${isFirst ? 'text-3xl' : 'text-2xl'} mb-1 ${isFirst ? 'animate-bounce' : ''}`}>{getTabEmoji(rank)}</span>
+                        <AraonIcon name={rankIconName(rank)} size={isFirst ? 40 : 32} className="mb-1" label={`${rank}위`} />
                         <span className={`text-[11px] font-bold truncate w-full text-center px-1 mb-2 ${isFirst ? 'text-[#70011D]' : 'text-zinc-500 dark:text-zinc-400'}`}>{user.name}</span>
                       </div>
-                      <div className={`w-full flex flex-col items-center justify-center bg-white dark:bg-[#252528] rounded-t-2xl border border-b-0 shadow-sm gap-0.5 ${
+                      <div className={`w-full flex flex-col items-center justify-center bg-white dark:bg-[#252528] rounded-t-lg border border-b-0 shadow-none gap-0.5 ${
                         activeTab === 'hall' 
                           ? (isFirst ? 'h-32 border-[#70011D]' : isThird ? 'h-16 border-zinc-200 dark:border-zinc-700' : 'h-24 border-zinc-200 dark:border-zinc-700')
                           : (isFirst ? 'h-20 border-[#70011D]' : isThird ? 'h-8 border-zinc-200 dark:border-zinc-700' : 'h-14 border-zinc-200 dark:border-zinc-700')
@@ -352,7 +342,7 @@ const RankingPage = () => {
                             <div className="w-4 h-[1px] bg-[#70011D]/10 my-1"></div>
                           </div>
                         )}
-                        <span className={`text-[11px] font-black ${rank === 1 ? 'text-gold-metallic animate-shine' : rank === 2 ? 'text-silver-metallic animate-shine' : 'text-bronze-metallic animate-shine'}`}>
+                        <span className={`text-[11px] font-bold ${rank === 1 ? 'text-gold-metallic animate-shine' : rank === 2 ? 'text-silver-metallic animate-shine' : 'text-bronze-metallic animate-shine'}`}>
                           {user.lastWeekScore}{activeTab === 'passion' ? ' 분' : activeTab === 'hall' ? ' p' : ' 단어'}
                         </span>
                       </div>
@@ -367,15 +357,15 @@ const RankingPage = () => {
 
           <div className="space-y-3">
             {loading ? (
-              <div className="py-20 text-center text-zinc-300 dark:text-zinc-700 font-black text-[10px] tracking-[0.4em] uppercase animate-pulse">Syncing...</div>
+              <div className="py-20 text-center text-zinc-300 dark:text-zinc-700 font-bold text-[10px] tracking-[0.4em] uppercase animate-pulse">Syncing...</div>
             ) : rankings.length > 0 ? (
               rankings.map((user) => {
                 const badge = getRankBadge(user.lastWeekRank, activeTab);
                 return (
-                  <div key={user.id} className={`p-4 border rounded-2xl flex items-center justify-between bg-white dark:bg-[#1C1C1E] border-zinc-100 dark:border-zinc-800 shadow-sm transition-all ${auth.currentUser?.email === user.id ? 'ring-4 ring-amber-400/10' : ''}`}>
+                  <div key={user.id} className={`p-4 border rounded-lg flex items-center justify-between bg-white dark:bg-[#1C1C1E] border-zinc-100 dark:border-zinc-800 shadow-none transition-all ${auth.currentUser?.email === user.id ? 'ring-4 ring-amber-400/10' : ''}`}>
                     <div className="flex items-center gap-5">
-                      <div className="w-8 h-8 flex items-center justify-center font-black italic">
-                        {user.rank === 1 ? '🥇' : user.rank === 2 ? '🥈' : user.rank === 3 ? '🥉' : <span className="text-[#70011D] opacity-50 text-sm not-italic">{user.rank < 10 ? `0${user.rank}` : user.rank}</span>}
+                      <div className="w-8 h-8 flex items-center justify-center font-bold italic">
+                        {user.rank <= 3 ? <AraonIcon name={rankIconName(user.rank)} size={28} label={`${user.rank}위`} /> : <span className="text-[#70011D] opacity-50 text-sm not-italic">{user.rank < 10 ? `0${user.rank}` : user.rank}</span>}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -383,17 +373,17 @@ const RankingPage = () => {
                           
                           {activeTab === 'hall' && (
                             <>
-                              {user.lastWeekRank === 1 && <span className="text-[14px] animate-bounce">👑</span>}
-                              {user.lastWeekRank === 2 && <span className="text-[14px]">🥈</span>}
-                              {user.lastWeekRank === 3 && <span className="text-[14px]">🥉</span>}
+                              {user.lastWeekRank === 1 && <AraonIcon name="crown" size={18} />}
+                              {user.lastWeekRank === 2 && <AraonIcon name="silver" size={18} />}
+                              {user.lastWeekRank === 3 && <AraonIcon name="bronze" size={18} />}
                             </>
                           )}
                           
                           {badge && (
                             <div className={`flex items-center gap-1 rounded-xl bg-zinc-50 dark:bg-white/5 border border-zinc-100 dark:border-white/5 ${badge.isSmall ? 'px-2 py-0.5' : 'px-2.5 py-1'}`}>
-                              {badge.emoji && <span className={`${badge.isSmall ? 'text-[10px]' : 'text-[12px]'}`}>{badge.emoji}</span>}
+                              <AraonIcon name={badge.icon} size={badge.isSmall ? 16 : 20} />
                               <span 
-                                className={`${badge.isSmall ? 'text-[8.5px]' : 'text-[10px]'} font-black tracking-tighter ${badge.style || ''} ${badge.animate ? 'animate-shine' : ''}`}
+                                className={`${badge.isSmall ? 'text-[8.5px]' : 'text-[10px]'} font-bold tracking-tighter ${badge.style || ''} ${badge.animate ? 'animate-shine' : ''}`}
                                 style={!badge.style && badge.color ? { 
                                   color: badge.animate ? 'transparent' : badge.color,
                                   background: badge.animate ? `linear-gradient(110deg, ${badge.color} 20%, #FFFFFF 40%, ${badge.color} 50%, #FFFFFF 70%, ${badge.color} 80%)` : 'none',
@@ -405,7 +395,7 @@ const RankingPage = () => {
                             </div>
                           )}
                         </div>
-                        <p className="text-[9px] font-black text-zinc-400 uppercase tracking-tighter mt-0.5">
+                        <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-tighter mt-0.5">
                           {user.score}{activeTab === 'passion' ? ' 분' : activeTab === 'hall' ? ' p' : ' 단어'}
                         </p>
                       </div>
@@ -413,7 +403,7 @@ const RankingPage = () => {
                   </div>
                 );
               })
-            ) : <div className="py-24 text-center bg-white dark:bg-[#1C1C1E] rounded-3xl border border-dashed border-zinc-200 dark:border-zinc-800"><p className="text-zinc-300 dark:text-zinc-700 font-bold text-xs uppercase tracking-widest">No Active Records</p></div>}
+            ) : <div className="py-24 text-center bg-white dark:bg-[#1C1C1E] rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800"><p className="text-zinc-300 dark:text-zinc-700 font-bold text-xs uppercase tracking-widest">No Active Records</p></div>}
           </div>
         </div>
       </div>

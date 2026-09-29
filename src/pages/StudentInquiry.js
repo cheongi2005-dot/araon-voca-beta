@@ -1,3 +1,5 @@
+import AppHeader from '../components/AppHeader';
+import AraonIcon from '../components/AraonIcon';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase-config';
@@ -7,7 +9,7 @@ import { useUserData } from '../contexts/UserDataContext';
 
 const StudentInquiry = () => {
   const navigate = useNavigate();
-  useTheme();
+  const [isDark, setIsDark] = useTheme();
   const [activeTab, setActiveTab] = useState('new'); // 'new' | 'history'
   const [category, setCategory] = useState("학습 오류");
   const [content, setContent] = useState("");
@@ -20,7 +22,7 @@ const StudentInquiry = () => {
 
   const faqGroups = [
     {
-      category: "📘 1. 학습 진행 및 방법 (Learning)",
+      icon: "words", category: " 1. 학습 진행 및 방법 (Learning)",
       items: [
         { q: "나에게 맞는 레벨은 어떻게 선택하나요?", a: "현재 자신의 학교 학년이나 평소 영어 실력에 맞춰 선택해 주세요. [레벨 변경] 메뉴에서 언제든지 조정 가능하지만, 기초부터 차근차근 밟아가는 것이 가장 효과적입니다." },
         { q: "하루에 몇 개의 단어를 학습하는 것이 좋은가요?", a: "'Day' 하나당 약 20~30개의 단어로 구성되어 있습니다. 매일 최소 1개의 Day를 완벽히 마스터하는 것을 목표로 설정해 보세요." },
@@ -28,7 +30,7 @@ const StudentInquiry = () => {
       ]
     },
     {
-      category: "🛠️ 2. 기술적인 문제 해결 (Technical)",
+      icon: "settings", category: " 2. 기술적인 문제 해결 (Technical)",
       items: [
         { q: "단어 발음 소리가 들리지 않아요.", a: "1) 기기의 무음 모드(매너 모드)를 해제해 주세요. 2) 설정 메뉴에서 [음성(Voice) 설정]이 제대로 되어 있는지 확인해 주세요. 3) 브라우저의 소리 권한이 차단되어 있는지 체크해 보세요." },
         { q: "학습 완료를 했는데 체크 표시가 안 떠요.", a: "퀴즈를 마지막 문제까지 풀고 '결과 화면'을 확인해야 학습 데이터가 저장됩니다. 퀴즈 도중 창을 닫으면 완료 처리가 되지 않으니 주의해 주세요." },
@@ -36,7 +38,7 @@ const StudentInquiry = () => {
       ]
     },
     {
-      category: "🏆 3. 동기부여 및 랭킹 (Ranking)",
+      icon: "ranking", category: " 3. 동기부여 및 랭킹 (Ranking)",
       items: [
         { q: "주간 랭킹은 언제 초기화되나요?", a: "랭킹은 매주 월요일 새벽에 초기화됩니다. 한 주 동안 가장 열심히 공부한 학생들의 순위를 확인해 보세요!" },
         { q: "포인트를 모으면 무엇을 할 수 있나요?", a: "학습 포인트는 랭킹 산정의 기준이 되며, 추후 포인트로 이용할 수 있는 다양한 리워드 시스템이 업데이트될 예정입니다." }
@@ -98,30 +100,22 @@ const StudentInquiry = () => {
     <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0B] flex flex-col max-w-md mx-auto font-sans antialiased transition-colors duration-500">
       
       {/* 헤더 */}
-      <header className="fixed top-0 left-0 right-0 z-20 flex flex-col bg-white dark:bg-[#1E1E1E] border-b border-zinc-100 dark:border-zinc-800" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex items-center justify-between w-full max-w-md mx-auto flex-1 h-16 px-4">
-          <button onClick={() => navigate('/settings')} className="p-2 text-slate-800 dark:text-white active:scale-90 transition-transform">
-            <i className="ph-bold ph-caret-left text-2xl"></i>
-          </button>
-          <h1 className="text-base font-black text-slate-800 dark:text-white absolute left-1/2 -translate-x-1/2">학생 고객센터</h1>
-          <div className="w-10"></div>
-        </div>
-      </header>
-      <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
+      <AppHeader isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} onBack={() => navigate('/settings')} />
+      <h1 className="px-6 pt-6 pb-2 text-xl font-bold dark:text-white">학생 고객센터</h1>
 
       {/* 탭 전환 */}
       <div className="p-4 bg-white dark:bg-[#1E1E1E] border-b border-slate-100 dark:border-zinc-800 flex gap-2 shrink-0">
         <button 
           onClick={() => setActiveTab('new')}
-          className={`flex-1 py-3 rounded-2xl text-xs font-black transition-all ${activeTab === 'new' ? 'bg-indigo-500 text-white shadow-md shadow-indigo-200 dark:shadow-none' : 'bg-slate-50 dark:bg-zinc-900 text-slate-500 dark:text-zinc-400'}`}
+          className={`flex-1 py-3 rounded-lg text-xs font-semibold transition-all ${activeTab === 'new' ? 'bg-indigo-500 text-white shadow-none shadow-indigo-200 dark:shadow-none' : 'bg-slate-50 dark:bg-zinc-900 text-slate-500 dark:text-zinc-400'}`}
         >
-          새 문의 작성
+          <AraonIcon name="question" size={20} className="mr-2" />새 문의 작성
         </button>
         <button 
           onClick={() => setActiveTab('history')}
-          className={`flex-1 py-3 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${activeTab === 'history' ? 'bg-indigo-500 text-white shadow-md shadow-indigo-200 dark:shadow-none' : 'bg-slate-50 dark:bg-zinc-900 text-slate-500 dark:text-zinc-400'}`}
+          className={`flex-1 py-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${activeTab === 'history' ? 'bg-indigo-500 text-white shadow-none shadow-indigo-200 dark:shadow-none' : 'bg-slate-50 dark:bg-zinc-900 text-slate-500 dark:text-zinc-400'}`}
         >
-          내 문의 내역
+          <AraonIcon name="activity" size={20} className="mr-2" />내 문의 내역
           {myInquiries.some(iq => iq.adminReply) && activeTab === 'new' && (
             <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-pulse"></span>
           )}
@@ -135,20 +129,20 @@ const StudentInquiry = () => {
             
             {/* FAQ 섹션 */}
             <section className="space-y-6">
-              <h3 className="text-xs font-black text-indigo-500 mb-1 flex items-center gap-1"><i className="ph-fill ph-info"></i> 자주 묻는 질문</h3>
+              <h3 className="text-xs font-bold text-indigo-500 mb-1 flex items-center gap-1"><AraonIcon name="question" size={22} /> 자주 묻는 질문</h3>
               
               {faqGroups.map((group, groupIdx) => (
                 <div key={groupIdx} className="space-y-3">
-                  <h4 className="text-[11px] font-black text-slate-400 dark:text-zinc-500 px-1 uppercase tracking-tighter">{group.category}</h4>
+                  <h4 className="text-[11px] font-bold text-slate-400 dark:text-zinc-500 px-1 uppercase tracking-tighter"><AraonIcon name={group.icon} size={20} className="mr-2" />{group.category}</h4>
                   <div className="space-y-2">
                     {group.items.map((faq, idx) => (
-                      <details key={idx} className="group bg-white dark:bg-[#1E1E1E] rounded-2xl border border-slate-100 dark:border-zinc-800 cursor-pointer shadow-sm">
+                      <details key={idx} className="group bg-white dark:bg-[#1E1E1E] rounded-lg border border-slate-100 dark:border-zinc-800 cursor-pointer shadow-none">
                         <summary className="text-[11px] font-bold text-slate-700 dark:text-zinc-300 p-4 list-none flex justify-between items-center">
                           <span><span className="text-indigo-400 mr-1">Q.</span>{faq.q}</span>
                           <i className="ph-bold ph-caret-down text-slate-300 dark:text-zinc-500 group-open:rotate-180 transition-transform"></i>
                         </summary>
                         <div className="p-4 pt-0 text-[10px] font-bold text-slate-500 dark:text-zinc-400 leading-relaxed border-t border-slate-50 dark:border-zinc-800/50 mt-2">
-                          <span className="text-indigo-400 font-black mr-1">A.</span>{faq.a}
+                          <span className="text-indigo-400 font-bold mr-1">A.</span>{faq.a}
                         </div>
                       </details>
                     ))}
@@ -158,15 +152,15 @@ const StudentInquiry = () => {
             </section>
 
             {/* 입력 폼 */}
-            <section className="bg-white dark:bg-[#1E1E1E] p-5 rounded-[2rem] shadow-sm border border-slate-100 dark:border-zinc-800">
-              <h3 className="text-sm font-black text-slate-800 dark:text-white mb-4">선생님께 직접 문의하기</h3>
+            <section className="bg-white dark:bg-[#1E1E1E] p-5 rounded-lg shadow-none border border-slate-100 dark:border-zinc-800">
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-4"><AraonIcon name="help" size={24} className="mr-2" />선생님께 직접 문의하기</h3>
               
               <div className="flex flex-wrap gap-2 mb-4">
                 {categories.map(cat => (
                   <button
                     key={cat}
                     onClick={() => setCategory(cat)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
                       category === cat 
                         ? 'bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/30' 
                         : 'bg-slate-50 dark:bg-zinc-900 text-slate-500 dark:text-zinc-500 border border-transparent'
@@ -181,13 +175,13 @@ const StudentInquiry = () => {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="어떤 점이 불편하신가요? 상세히 적어주세요."
-                className="w-full h-32 p-4 bg-slate-50 dark:bg-zinc-900 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-400 text-xs font-bold text-slate-700 dark:text-zinc-300 resize-none mb-4"
+                className="w-full h-32 p-4 bg-slate-50 dark:bg-zinc-900 rounded-lg border-none outline-none focus:ring-2 focus:ring-indigo-400 text-xs font-bold text-slate-700 dark:text-zinc-300 resize-none mb-4"
               />
 
               <button 
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm active:scale-95 transition-all shadow-md shadow-indigo-200 dark:shadow-none disabled:opacity-50"
+                className="w-full py-4 bg-indigo-600 text-white rounded-lg font-bold text-sm active:scale-95 transition-all shadow-none shadow-indigo-200 dark:shadow-none disabled:opacity-50"
               >
                 {isSubmitting ? '전송 중...' : '문의 등록하기'}
               </button>
@@ -196,30 +190,30 @@ const StudentInquiry = () => {
         ) : (
           <div className="space-y-3 animate__animated animate__fadeIn">
             {myInquiries.length === 0 ? (
-              <div className="text-center py-20 bg-white dark:bg-[#1E1E1E] rounded-[2rem] text-slate-300 dark:text-zinc-600 font-bold border border-dashed border-slate-200 dark:border-zinc-800">
+              <div className="text-center py-20 bg-white dark:bg-[#1E1E1E] rounded-lg text-slate-300 dark:text-zinc-600 font-bold border border-dashed border-slate-200 dark:border-zinc-800">
                 작성한 문의가 없습니다.
               </div>
             ) : (
               myInquiries.map(iq => (
-                <div key={iq.id} className="bg-white dark:bg-[#1E1E1E] p-5 rounded-[2rem] shadow-sm border border-slate-100 dark:border-zinc-800">
+                <div key={iq.id} className="bg-white dark:bg-[#1E1E1E] p-5 rounded-lg shadow-none border border-slate-100 dark:border-zinc-800">
                   <div className="flex justify-between items-center mb-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 dark:bg-indigo-500/20 px-2 py-0.5 rounded-md">{iq.category}</span>
+                      <span className="text-[9px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-500/20 px-2 py-0.5 rounded-md">{iq.category}</span>
                       <span className="text-[9px] font-bold text-slate-400 dark:text-zinc-500">
                         {iq.createdAt?.toDate().toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-md ${iq.adminReply ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-500/20' : 'text-slate-500 bg-slate-100 dark:bg-zinc-800 dark:text-zinc-400'}`}>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${iq.adminReply ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-500/20' : 'text-slate-500 bg-slate-100 dark:bg-zinc-800 dark:text-zinc-400'}`}>
                       {iq.adminReply ? '답변 완료' : '확인 중'}
                     </span>
                   </div>
                   
-                  <p className="text-xs font-bold text-slate-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed"><span className="text-indigo-400 font-black mr-1">Q.</span>{iq.content}</p>
+                  <p className="text-xs font-bold text-slate-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed"><span className="text-indigo-400 font-bold mr-1">Q.</span>{iq.content}</p>
                   
                   {iq.adminReply && (
-                    <div className="bg-slate-50 dark:bg-zinc-900 p-4 rounded-2xl relative mt-4">
+                    <div className="bg-slate-50 dark:bg-zinc-900 p-4 rounded-lg relative mt-4">
                       <div className="absolute -top-2 left-4 w-3 h-3 bg-slate-50 dark:bg-zinc-900 rotate-45"></div>
-                      <p className="text-[11px] font-bold text-indigo-700 dark:text-indigo-400 leading-relaxed whitespace-pre-wrap"><span className="font-black mr-1">A.</span>{iq.adminReply}</p>
+                      <p className="text-[11px] font-bold text-indigo-700 dark:text-indigo-400 leading-relaxed whitespace-pre-wrap"><span className="font-bold mr-1">A.</span>{iq.adminReply}</p>
                     </div>
                   )}
                 </div>

@@ -1,3 +1,4 @@
+import SpeakerIcon from './SpeakerIcon';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuiz } from '../hooks/useQuiz';
 import { useSpeech } from '../hooks/useSpeech';
@@ -102,7 +103,7 @@ const QuizEngine = ({ questions, mode, themeColor, onFinish, onMistake, onCorrec
             <div className="h-full transition-all duration-500" style={{ width: `${((currentIndex + 1) / questions.length) * 100}%`, backgroundColor: themeColor }}></div>
           </div>
           <button onClick={() => setMuted(!muted)} className="p-2 text-zinc-400 active:scale-90">
-            <i className={`ph-bold ${muted ? 'ph-speaker-slash' : 'ph-speaker-high'} text-2xl`}></i>
+            <SpeakerIcon size={26} muted={muted} />
           </button>
       </div>
 
@@ -119,7 +120,7 @@ const QuizEngine = ({ questions, mode, themeColor, onFinish, onMistake, onCorrec
               <p className="text-zinc-400 text-xs font-bold uppercase mb-2 tracking-wider">Meaning</p>
               <h3 className="text-3xl font-bold px-4 dark:text-white leading-tight">{sanitizedCurrentQ?.meaning}</h3>
               <button onClick={() => speak(safeWord)} className="mt-5 px-5 py-2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 active:scale-90 transition-transform inline-flex items-center gap-1.5 text-xs font-bold">
-                <i className="ph-bold ph-speaker-high text-base"></i> 발음 듣기
+                <SpeakerIcon size={24} /> 발음 듣기
               </button>
               {mode === 'letter' && (
                 <div className="mt-8 flex justify-center gap-1.5">

@@ -1,3 +1,5 @@
+import AppHeader from '../components/AppHeader';
+import AraonIcon, { rankIconName } from '../components/AraonIcon';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase-config';
@@ -11,7 +13,7 @@ import { getMistakeWords, migrateAttempts, MISTAKES_CACHE_KEY, refreshMistakesCa
 import { useUserData } from '../contexts/UserDataContext';
 
 // 🎯 leaderboard 컬렉션 백필 및 검증 완료 — 다시 노출합니다.
-const RANKING_ENABLED = true;
+const RANKING_ENABLED = false;
 
 const STORAGE_KEYS = Object.values(LEVEL_CONFIG).map(config => config.key);
 
@@ -207,36 +209,29 @@ function Home() {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
-      <header className="fixed top-0 left-0 right-0 z-20 flex flex-col bg-white dark:bg-[#1E1E1E] border-b border-zinc-100 dark:border-zinc-800 shadow-sm transition-colors" style={{ paddingTop: 'env(safe-area-inset-top)', minHeight: 'calc(64px + env(safe-area-inset-top))' }}>
-        <div className="flex-1 flex items-center px-6 justify-between w-full max-w-md mx-auto h-16">
-          <button onClick={() => navigate('/settings')} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className="ph-bold ph-list text-2xl"></i></button>
-          <img src={isDark ? `${process.env.PUBLIC_URL}/Araon_logo_W.webp` : `${process.env.PUBLIC_URL}/Araon_logo.webp`} alt="ARAON" className="h-10 w-auto" />
-          <button onClick={() => setIsDark(!isDark)} className="p-2 text-black dark:text-white active:scale-90 transition-transform"><i className={`ph-bold ${isDark ? 'ph-sun' : 'ph-moon'} text-2xl`}></i></button>
-        </div>
-      </header>
-      <div style={{ height: 'calc(64px + env(safe-area-inset-top))' }} />
+      <AppHeader isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} onBack={() => navigate('/settings')} home />
 
       <main className="flex-1 py-6 overflow-y-auto">
-        <div className="px-6 flex flex-col gap-8">
+        <div className="px-6 flex flex-col gap-6">
           <div>
-            <div className="flex items-center justify-between mb-3 px-2"><h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 tracking-tight">학습 진행 상황</h2></div>
+            <div className="flex items-center justify-between mb-3 px-2"><h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 tracking-tight">학습 진행 상황</h2></div>
             <div className="flex flex-col gap-3">
               <Link to={currentLevelInfo.title === 'Phonics' ? '/phonics' : `/${currentLevelInfo.title === 'Foundation' ? 'elementary-100' : Object.keys(LEVEL_CONFIG).find(k => LEVEL_CONFIG[k].title === currentLevelInfo.title)}`} className="block group">
-                <div className="p-6 border border-zinc-100 dark:border-zinc-800 rounded-2xl flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-sm active:scale-[0.98] transition-all">
-                  <div className="flex items-center gap-5">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-inner font-black text-lg" style={{ backgroundColor: currentLevelInfo.color }}>{currentLevelInfo.id === '00' ? <i className="ph-fill ph-headphones"></i> : currentLevelInfo.id}</div>
-                    <div><h3 className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: currentLevelInfo.color }}>{currentLevelInfo.title}</h3><p className="text-lg font-bold tracking-tight dark:text-white">{currentLevelInfo.subTitle}</p></div>
+                <div className="p-5 border border-zinc-200 dark:border-zinc-800 rounded-lg flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-none active:opacity-80 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-inner font-bold text-lg" style={{ backgroundColor: currentLevelInfo.color }}>{currentLevelInfo.id === '00' ? <i className="ph-fill ph-headphones"></i> : currentLevelInfo.id}</div>
+                    <div><h3 className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: currentLevelInfo.color }}>{currentLevelInfo.title}</h3><p className="text-lg font-bold tracking-tight dark:text-white">{currentLevelInfo.subTitle}</p></div>
                   </div>
                   <i className="ph-bold ph-caret-right text-zinc-200 group-hover:text-zinc-400 transition-colors"></i>
                 </div>
               </Link>
               <Link to="/my-voca" className="block group">
-                <div className="p-6 border border-zinc-100 dark:border-zinc-800 rounded-2xl flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-sm active:scale-[0.98] transition-all">
+                <div className="p-5 border border-zinc-200 dark:border-zinc-800 rounded-lg flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-none active:opacity-80 transition-all">
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-[#70011D] rounded-xl flex items-center justify-center text-white shadow-lg shadow-[#70011D]/30"><i className="ph-fill ph-star text-xl"></i></div>
+                    <AraonIcon name="book" size={48} />
                     <div>
-                      <h3 className="text-[9px] font-black uppercase tracking-widest text-[#70011D]">Personal Collection</h3>
-                      <p className="text-xl font-black dark:text-white tracking-tight">나의 단어장 <span className="ml-2 text-xs px-2 py-0.5 bg-[#70011D] text-white rounded-full font-black">{totalMistakes}</span></p>
+                      <h3 className="text-[9px] font-bold uppercase tracking-widest text-[#70011D]">Personal Collection</h3>
+                      <p className="text-lg font-semibold dark:text-white tracking-tight">나의 단어장 <span className="ml-2 text-xs px-2 py-0.5 bg-[#70011D] text-white rounded-full font-bold">{totalMistakes}</span></p>
                     </div>
                   </div>
                   <i className="ph-bold ph-caret-right text-[#70011D]/40 group-hover:text-[#70011D] transition-colors"></i>
@@ -246,20 +241,20 @@ function Home() {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-3 px-2"><h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 tracking-tight">주간 학습 리포트</h2></div>
+            <div className="flex items-center justify-between mb-3 px-2"><h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 tracking-tight flex items-center gap-2"><AraonIcon name="report" size={22} />주간 학습 리포트</h2></div>
             <Link to="/dashboard" className="block group">
               <div className="grid grid-cols-2 gap-3 mb-3">
-                <div className="p-4 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-2xl shadow-sm flex items-center gap-3 active:scale-[0.98] transition-all">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${currentLevelInfo.color}20`, color: currentLevelInfo.color }}><i className="ph-fill ph-book-open text-lg"></i></div>
-                  <div><p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Words</p><div className="flex items-baseline gap-1"><span className="text-xl font-black dark:text-white tracking-tight">{weeklyStats.weeklyTotalWords}</span><span className="text-[11px] font-bold text-zinc-400">개</span></div></div>
+                <div className="p-4 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-lg shadow-none flex items-center gap-3 active:opacity-80 transition-all">
+                  <AraonIcon name="words" size={36} />
+                  <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Words</p><div className="flex items-baseline gap-1"><span className="text-xl font-bold dark:text-white tracking-tight">{weeklyStats.weeklyTotalWords}</span><span className="text-[11px] font-bold text-zinc-400">개</span></div></div>
                 </div>
-                <div className="p-4 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-2xl shadow-sm flex items-center gap-3 active:scale-[0.98] transition-all">
-                  <div className="w-9 h-9 bg-[#F2FAF7] dark:bg-[#1B2D26] rounded-xl flex items-center justify-center text-[#34D399] flex-shrink-0"><i className="ph-fill ph-clock text-lg"></i></div>
-                  <div><p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Weekly Time</p><div className="flex items-baseline gap-1"><span className="text-xl font-black dark:text-white tracking-tight">{weeklyStats.weeklyTotalTime}</span><span className="text-[11px] font-bold text-zinc-400">분</span></div></div>
+                <div className="p-4 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-lg shadow-none flex items-center gap-3 active:opacity-80 transition-all">
+                  <AraonIcon name="clock" size={36} />
+                  <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Weekly Time</p><div className="flex items-baseline gap-1"><span className="text-xl font-bold dark:text-white tracking-tight">{weeklyStats.weeklyTotalTime}</span><span className="text-[11px] font-bold text-zinc-400">분</span></div></div>
                 </div>
               </div>
-              <div className="p-6 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-2xl shadow-sm active:scale-[0.99] transition-all relative">
-                <div className="flex items-center justify-between mb-8"><h3 className="text-[10px] font-black text-zinc-300 dark:text-zinc-600 uppercase tracking-widest">Weekly Activity (월-일)</h3><i className="ph-bold ph-caret-right text-zinc-200 group-hover:text-zinc-400 transition-colors"></i></div>
+              <div className="p-6 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-lg shadow-none active:opacity-80 transition-all relative">
+                <div className="flex items-center justify-between mb-5"><h3 className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase tracking-widest">Weekly Activity (월-일)</h3><i className="ph-bold ph-caret-right text-zinc-200 group-hover:text-zinc-400 transition-colors"></i></div>
                 <div className="flex items-end justify-between h-24 gap-2 px-2">
                   {['월', '화', '수', '목', '금', '토', '일'].map((day, i) => {
                     const stat = weeklyStats.dailyStats[i];
@@ -280,28 +275,28 @@ function Home() {
 
           {RANKING_ENABLED && (
             <div>
-              <div className="flex items-center justify-between mb-3 px-2"><h2 className="text-sm font-black text-zinc-800 dark:text-zinc-200 tracking-tight">명예의 전당 & 랭킹</h2></div>
+              <div className="flex items-center justify-between mb-3 px-2"><h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 tracking-tight">명예의 전당 & 랭킹</h2></div>
               <Link to="/ranking" className="block group">
-                <div className="p-6 border border-zinc-100 dark:border-zinc-800 rounded-2xl flex items-center bg-white dark:bg-[#1E1E1E] shadow-sm active:scale-[0.98] transition-all">
+                <div className="p-5 border border-zinc-200 dark:border-zinc-800 rounded-lg flex items-center bg-white dark:bg-[#1E1E1E] shadow-none active:opacity-80 transition-all">
                   {isRankLoading && !myRankInfo ? (
                     <div className="text-center w-full py-2">
                       <p className="text-xs font-bold text-zinc-400 animate-pulse">랭킹 데이터를 불러오는 중... ⏳</p>
                     </div>
                   ) : myRankInfo ? (
                     <>
-                      <div className="w-12 h-12 bg-[#FDF2F2] dark:bg-[#2D1B1B] rounded-2xl flex items-center justify-center flex-shrink-0">
+                      <div className="w-12 h-12 bg-[#FDF2F2] dark:bg-[#2D1B1B] rounded-lg flex items-center justify-center flex-shrink-0">
                         {myRankInfo.score > 0 && myRankInfo.rank <= 3 ? (
-                          <span className="text-2xl">{myRankInfo.rank === 1 ? '🥇' : myRankInfo.rank === 2 ? '🥈' : '🥉'}</span>
+                          <span className="text-2xl"><AraonIcon name={rankIconName(myRankInfo.rank)} size={32} /></span>
                         ) : (
-                          <span className="text-[#70011D] dark:text-[#FF4D4D] font-black text-lg italic">{myRankInfo.score > 0 ? myRankInfo.rank : "-"}</span>
+                          <span className="text-[#70011D] dark:text-[#FF4D4D] font-bold text-lg italic">{myRankInfo.score > 0 ? myRankInfo.rank : "-"}</span>
                         )}
                       </div>
                       <div className="ml-4 flex-1">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-[10px] font-black text-[#70011D] dark:text-[#FF4D4D] uppercase tracking-widest">{myRankInfo.levelTitle} 챔프</span>
+                          <span className="text-[10px] font-bold text-[#70011D] dark:text-[#FF4D4D] uppercase tracking-widest">{myRankInfo.levelTitle} 챔프</span>
                           <span className="px-2 py-0.5 bg-[#FDF2F2] dark:bg-[#70011D]/30 text-[#70011D] dark:text-[#FF4D4D] rounded-full text-[9px] font-bold">상위 {myRankInfo.score > 0 ? Math.max(1, Math.round((myRankInfo.rank / myRankInfo.levelTotalUsers) * 100)) : 100}%</span>
                         </div>
-                        <div className="flex items-baseline gap-1.5"><span className="text-2xl font-black dark:text-white tracking-tight">{myRankInfo.score > 0 ? `${myRankInfo.rank}위` : "도전 시작!"}</span><span className="text-xs font-bold text-zinc-400">/ {myRankInfo.levelTotalUsers}명 | {myRankInfo.score} 단어</span></div>
+                        <div className="flex items-baseline gap-1.5"><span className="text-2xl font-bold dark:text-white tracking-tight">{myRankInfo.score > 0 ? `${myRankInfo.rank}위` : "도전 시작!"}</span><span className="text-xs font-bold text-zinc-400">/ {myRankInfo.levelTotalUsers}명 | {myRankInfo.score} 단어</span></div>
                         <p className="text-[11px] font-bold text-zinc-400 mt-0.5">{myRankInfo.score > 0 ? getCheeringMessage(myRankInfo.rank) : "오늘 첫 단어를 학습해보세요! 🌱"}</p>
                       </div>
                       <i className="ph-bold ph-caret-right text-zinc-300 dark:text-zinc-600 group-hover:text-[#70011D] transition-colors"></i>
