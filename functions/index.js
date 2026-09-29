@@ -104,8 +104,36 @@ exports.adminDeleteStudent = onCall({
     console.warn("[adminDeleteStudent] Auth 삭제 건너뜀:", error.message);
   }
 
-  await admin.firestore().collection("users").doc(studentId).delete();
+  await deleteStudentData(studentId);
 
+  return { success: true };
+});
+
+// 학생 데이터 전부 삭제: users 문서 + 랭킹(leaderboard) + 본인 문의. 관리자 삭제와 본인 탈퇴가 같이 쓴다.
+// (예전에는 users 문서만 지워서 삭제된 학생 이름이 랭킹에 계속 남았다)
+async function deleteStudentData(email) {
+  const db = admin.firestore();
+  const batch = db.batch();
+  const inquiries = await db.collection("inquiries").where("studentAuthEmail", "==", email).get();
+  inquiries.forEach((d) => batch.delete(d.ref));
+  batch.delete(db.collection("users").doc(email));
+  batch.delete(db.collection("leaderboard").doc(email));
+  await batch.commit();
+}
+
+/**
+ * 🗑️ 0-b2. 본인 회원 탈퇴
+ * firestore.rules상 users 문서 삭제는 관리자만 가능해서 클라이언트의 deleteDoc이 항상 거부됐다.
+ * 문서를 먼저 지우고 계정을 지운다 — 계정 삭제가 실패해도 다시 시도하면 이어서 처리된다.
+ */
+exports.deleteMyAccount = onCall({
+  region: "asia-northeast3",
+}, async (request) => {
+  const email = request.auth?.token?.email;
+  if (!email) throw new HttpsError("unauthenticated", "로그인이 필요합니다.");
+
+  await deleteStudentData(email);
+  await admin.auth().deleteUser(request.auth.uid);
   return { success: true };
 });
 
@@ -138,7 +166,12 @@ exports.adminSendReply = onCall({
 /**
  * 🔊 0. ElevenLabs TTS 프록시 (API 키를 서버에서만 사용)
  * 클라이언트는 이 함수를 호출하며, 실제 ElevenLabs 키는 절대 노출되지 않음
+ * 같은 문장은 ElevenLabs로 한 번만 만들고 Firestore ttsCache에 저장해 모든 학생이 같이 쓴다 (학생 수만큼 과금되지 않게).
+ * ttsCache는 보안 규칙에 없어서 클라이언트는 못 읽고 Admin SDK(이 함수)만 쓴다. 문서 1MB 한도 < 300자 음성(base64 약 0.4MB).
  */
+const crypto = require("crypto");
+const TTS_MODEL = "eleven_multilingual_v2";
+
 exports.tts = onCall({
   region: "asia-northeast3",
   memory: "256MiB",
@@ -160,6 +193,13 @@ exports.tts = onCall({
     throw new HttpsError("unavailable", "TTS 서비스가 설정되지 않았습니다.");
   }
 
+  // 목소리·모델이 바뀌면 키가 달라져 새로 만든다. 캐시 읽기/쓰기가 실패해도 음성은 그대로 돌려준다.
+  const clean = text.trim();
+  const cacheRef = admin.firestore().collection("ttsCache")
+    .doc(crypto.createHash("sha256").update(`${voiceId}|${TTS_MODEL}|${clean}`).digest("hex"));
+  const cached = await cacheRef.get().catch((e) => { console.error("ttsCache read failed:", e.message); return null; });
+  if (cached?.exists) return { audio: cached.get("audio") };
+
   const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
     method: "POST",
     headers: {
@@ -167,8 +207,8 @@ exports.tts = onCall({
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      text: text.trim(),
-      model_id: "eleven_multilingual_v2",
+      text: clean,
+      model_id: TTS_MODEL,
       voice_settings: { stability: 0.5, similarity_boost: 0.5 },
     }),
   });
@@ -178,8 +218,10 @@ exports.tts = onCall({
     throw new HttpsError("internal", "TTS 요청에 실패했습니다.");
   }
 
-  const audioBuffer = await response.arrayBuffer();
-  return { audio: Buffer.from(audioBuffer).toString("base64") };
+  const audio = Buffer.from(await response.arrayBuffer()).toString("base64");
+  await cacheRef.set({ text: clean, audio, createdAt: admin.firestore.FieldValue.serverTimestamp() })
+    .catch((e) => console.error("ttsCache write failed:", e.message));
+  return { audio };
 });
 
 /**
@@ -192,9 +234,13 @@ exports.tts = onCall({
 exports.parentLogin = onCall({
   region: "asia-northeast3",
 }, async (request) => {
+  // 전화번호만으로는 번호를 아는 누구나 학생 기록을 열람할 수 있어서 학생 이름도 함께 확인한다.
+  // (형제가 같은 번호로 가입한 경우도 이름으로 구분된다)
+  // ponytail: 이름+번호를 아는 사람은 여전히 열람 가능. 막으려면 문자 인증 또는 시도 횟수 제한 필요.
   const rawPhone = String(request.data?.phone || "").trim();
-  if (!rawPhone) {
-    throw new HttpsError("invalid-argument", "전화번호를 입력해주세요.");
+  const name = String(request.data?.name || "").trim();
+  if (!rawPhone || !name) {
+    throw new HttpsError("invalid-argument", "학생 이름과 전화번호를 입력해주세요.");
   }
 
   const digitsOnly = rawPhone.replace(/\D/g, "");
@@ -204,11 +250,9 @@ exports.parentLogin = onCall({
   const db = admin.firestore();
   let studentDoc = null;
   for (const candidate of candidates) {
-    const snap = await db.collection("users").where("phone", "==", candidate).limit(1).get();
-    if (!snap.empty) {
-      studentDoc = snap.docs[0];
-      break;
-    }
+    const snap = await db.collection("users").where("phone", "==", candidate).get();
+    studentDoc = snap.docs.find((d) => String(d.data().name || "").trim() === name) || null;
+    if (studentDoc) break;
   }
 
   if (!studentDoc) {
@@ -301,6 +345,59 @@ exports.syncLeaderboardOnUserUpdate = onDocumentUpdated("users/{userEmail}", asy
   } catch (error) {
     console.error("[syncLeaderboardOnUserUpdate] 리더보드 동기화 에러:", error);
   }
+});
+
+/**
+ * 🔔 0-c2. 같은 기기(FCM 토큰)는 마지막으로 등록한 계정 하나에만 남긴다.
+ * 공용 기기에서 계정을 바꾸면 이전 계정 문서에도 같은 토큰이 남아, 이전 학생 알림이 다음 학생 기기로 갔다.
+ */
+exports.dedupeFcmToken = onDocumentUpdated("users/{userEmail}", async (event) => {
+  const token = event.data.after.data()?.fcmToken;
+  if (!token || token === event.data.before.data()?.fcmToken) return;
+
+  const snap = await admin.firestore().collection("users").where("fcmToken", "==", token).get();
+  await Promise.all(snap.docs
+    .filter((d) => d.id !== event.params.userEmail)
+    .map((d) => d.ref.update({ fcmToken: admin.firestore.FieldValue.delete() })));
+});
+
+/**
+ * 🧹 0-c3. 이름에 점(.)이 든 최상위 필드 정리 (관리자 전용, 1회성)
+ * LevelTemplate가 setDoc(merge)에 "levelProgress.키.Day", "stats.weeklyWords" 같은 점 표기 키를 넘겨서
+ * 중첩 필드 대신 이름에 점이 든 최상위 필드가 쌓였다(2026-06 ~ 2026-09).
+ * levelProgress Day 기록은 중첩 levelProgress에 그 Day가 없을 때만 옮기고, 나머지는 지운다.
+ * 중첩 lastUpdated는 건드리지 않는다 — 기기의 로컬 기록이 더 최신이면 그대로 이기고, 옮긴 Day는 합쳐진다.
+ */
+exports.migrateDottedFields = onCall({
+  region: "asia-northeast3",
+  timeoutSeconds: 300,
+}, async (request) => {
+  assertIsAdmin(request);
+
+  const { FieldPath, FieldValue } = admin.firestore;
+  const usersSnap = await admin.firestore().collection("users").get();
+  let updated = 0;
+
+  for (const userDoc of usersSnap.docs) {
+    const data = userDoc.data();
+    const dotted = Object.keys(data).filter((k) => k.includes("."));
+    if (dotted.length === 0) continue;
+
+    // update(FieldPath, 값, ...) 형태: 문자열 키를 쓰면 점이 다시 경로로 해석되므로 FieldPath로 한 칸짜리 이름을 지정한다
+    const args = [];
+    dotted.forEach((k) => {
+      const [root, levelKey, day, ...rest] = k.split(".");
+      if (root === "levelProgress" && levelKey && day && day !== "lastUpdated" && rest.length === 0
+        && !data.levelProgress?.[levelKey]?.[day]) {
+        args.push(new FieldPath("levelProgress", levelKey, day), data[k]);
+      }
+      args.push(new FieldPath(k), FieldValue.delete());
+    });
+    await userDoc.ref.update(...args);
+    updated++;
+  }
+
+  return { success: true, updated };
 });
 
 /**

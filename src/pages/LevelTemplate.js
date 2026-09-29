@@ -1,10 +1,14 @@
 import QuizModeIcon from '../components/QuizModeIcon';
 import SpeakerIcon from '../components/SpeakerIcon';
+import WordCard, { FavoriteButton, SentenceText, fillSentence } from '../components/WordCard';
+import PageTurn from '../components/PageTurn';
+import { useFavorites } from '../hooks/useFavorites';
+import { useSwipe } from '../hooks/useSwipe';
 import AppHeader from '../components/AppHeader';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase-config';
-import { doc, setDoc, serverTimestamp, increment, arrayUnion } from "firebase/firestore";
+import { doc, updateDoc, serverTimestamp, increment, arrayUnion } from "firebase/firestore";
 import { LEVEL_CONFIG } from '../config/levelConfig';
 import { useStorage } from '../hooks/useStorage';
 import { useSpeech } from '../hooks/useSpeech';
@@ -12,7 +16,8 @@ import QuizEngine from '../components/QuizEngine';
 import LoadingScreen from '../components/LoadingScreen';
 import { useTheme } from '../hooks/useTheme';
 import { safeGetItem, safeSetItem } from '../utils/storage';
-import { migrateAttempts, getMistakeWords } from '../utils/mistakes';
+import { getMistakeWords } from '../utils/mistakes';
+import { mergeLevelData } from '../utils/progress';
 import { useUserData } from '../contexts/UserDataContext';
 
 const LevelTemplate = () => {
@@ -20,6 +25,7 @@ const LevelTemplate = () => {
   const levelId = useMemo(() => rawLevelId?.toLowerCase() || '', [rawLevelId]);
   const navigate = useNavigate();
   const { speak, prefetchWords } = useSpeech();
+  const { isFavorite, toggleFavorite } = useFavorites();
 
   const config = useMemo(() => LEVEL_CONFIG[levelId] || null, [levelId]);
   const [loadedData, setLoadedData] = useState({ data: null, titles: null });
@@ -29,6 +35,8 @@ const LevelTemplate = () => {
   const [isDarkMode, setIsDarkMode] = useTheme();
   const [view, setView] = useState('home');
   const [selectedDay, setSelectedDay] = useState(null);
+  const [studyIndex, setStudyIndex] = useState(0);
+  const [studyDir, setStudyDir] = useState(null); // 'next' | 'prev' — 카드가 들어오는 방향
   const [quizMode, setQuizMode] = useState('choice');
   const [finalScore, setFinalScore] = useState(0);
   const [shuffledQuestions, setShuffledQuestions] = useState([]);
@@ -45,8 +53,9 @@ const LevelTemplate = () => {
     setSelectedDay(day);
     setView('dayHome');
     setStartTime(Date.now());
-    const words = (loadedData.data?.[day] || []).map(item => item.word);
-    if (words.length > 0) prefetchWords(words);
+    // 단어와 예문의 AI 음성을 미리 받아 둔다 (예문은 speak와 같은 문장이어야 캐시가 맞는다). 단어→예문 순서라 앞 카드부터 준비된다.
+    const texts = (loadedData.data?.[day] || []).flatMap(item => item.sentence ? [item.word, fillSentence(item.sentence, item.word)] : [item.word]);
+    if (texts.length > 0) prefetchWords(texts);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedData.data, prefetchWords]);
 
@@ -68,21 +77,7 @@ const LevelTemplate = () => {
     if (!config?.key) return;
 
     const timer = setTimeout(() => { // 데이터 병합은 화면 렌더 후에 처리
-      const dbLevelData = studentData.levelProgress?.[config.key] || {};
-      const localLevelData = safeGetItem(config.key, {});
-
-      const dbTime = dbLevelData.lastUpdated || 0;
-      const localTime = localLevelData.lastUpdated || 0;
-      const rawData = Object.keys(dbLevelData).length > 0
-        ? (dbTime >= localTime ? dbLevelData : localLevelData)
-        : localLevelData;
-
-      const finalData = JSON.parse(JSON.stringify(rawData));
-      Object.keys(finalData).forEach(dayKey => {
-        if (dayKey === 'lastUpdated') return;
-        const day = finalData[dayKey];
-        if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
-      });
+      const finalData = mergeLevelData(studentData.levelProgress?.[config.key], safeGetItem(config.key, {}));
 
       const hasCompletedDays = Object.keys(finalData).some(k => k !== 'lastUpdated' && finalData[k]?.completed);
       if (!hasCompletedDays && Array.isArray(studentData.attendance)) {
@@ -205,15 +200,15 @@ const LevelTemplate = () => {
         updateData[`stats.levels.${levelKey}.weeklyWords`] = increment(numericImprovement);
       }
 
-      if (localSyncData && config?.key && selectedDay) {
-        const dayData = localSyncData[selectedDay]
-          ? JSON.parse(JSON.stringify(localSyncData[selectedDay]))
-          : {};
-        updateData[`levelProgress.${config.key}.${selectedDay}`] = dayData;
-        updateData[`levelProgress.${config.key}.lastUpdated`] = Date.now();
+      // 레벨 전체를 올린다: 로컬은 진입 시 DB와 Day 단위로 합쳐 둔 값이라 DB의 상위 집합이고,
+      // 이 기기에만 있던 Day 오답도 같이 올라간다. lastUpdated는 로컬과 같은 값.
+      if (localSyncData && config?.key) {
+        updateData[`levelProgress.${config.key}`] = localSyncData;
       }
-      
-      await setDoc(userRef, updateData, { merge: true });
+
+      // ⚠️ setDoc(merge)은 "a.b" 키를 중첩 경로가 아니라 이름에 점이 든 최상위 필드로 저장한다.
+      // 점 표기 경로는 updateDoc만 해석한다.
+      await updateDoc(userRef, updateData);
       setStartTime(Date.now());
       
     } catch (err) { 
@@ -221,17 +216,34 @@ const LevelTemplate = () => {
     }
   };
 
+  // 단어 학습 카드: 좌우 스와이프·버튼으로 넘기고, 위로 밀면 단어 리스트(내 단어장과 같은 두 페이지). 마지막 카드에서 '다음'은 퀴즈 버튼만.
+  const dayLen = (selectedDay && loadedData.data?.[selectedDay]?.length) || 0;
+  const goStudy = (dir) => { setStudyDir(dir); setStudyIndex(i => Math.max(0, Math.min(i + (dir === 'next' ? 1 : -1), dayLen - 1))); };
+  const [studyPanel, setStudyPanel] = useState('card'); // 'card' | 'list' — 위아래 스와이프로 오가는 두 페이지
+  // '위로 밀면 단어 리스트' 안내: 학습에 들어오면 3초만 보이고 사라짐 (위로 밀기는 계속 됨)
+  const [studyHint, setStudyHint] = useState(false);
+  useEffect(() => {
+    if (view !== 'study') return;
+    setStudyHint(true);
+    const t = setTimeout(() => setStudyHint(false), 3000);
+    return () => clearTimeout(t);
+  }, [view, selectedDay]);
+  const studySwipe = useSwipe({ onLeft: () => goStudy('next'), onRight: () => goStudy('prev'), onUp: () => setStudyPanel('list') });
+  const listSwipe = useSwipe({ onDown: () => setStudyPanel('card') });
+
   if (!config) return <div className="p-10 text-center dark:text-white">레벨 정보를 찾을 수 없습니다.</div>;
   if (isDataLoading || isSyncLoading) return <LoadingScreen />;
 
   const currentDayData = selectedDay ? (loadedData.data?.[selectedDay] || []) : [];
   const dayMistakes = selectedDay ? getMistakeWords(dayHistory[selectedDay]?.attempts) : [];
+  const cardStudy = currentDayData.length > 0; // 단어 학습은 모든 레벨에서 카드 한 장씩
+  const studyPager = view === 'study' && cardStudy; // 스크롤 없는 한 화면: 카드 / 단어 리스트 두 페이지
 
   return (
-    <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
+    <div className={`${studyPager ? 'h-screen overflow-hidden' : 'min-h-screen'} flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden`}>
       <AppHeader whiteContent={config.id === '05' || config.id === '06'} themeColor={config.color} isDark={isDarkMode} onToggleTheme={() => setIsDarkMode(!isDarkMode)} onBack={() => view === 'home' ? navigate('/') : setView(view === 'quiz' ? 'modeSelect' : 'home')} />
 
-      <main className="flex-1 p-6 overflow-y-auto">
+      <main className={`flex-1 p-6 ${studyPager ? 'min-h-0 overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}`} style={studyPager ? { paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' } : undefined}>
         {view === 'home' && (
           <div className="animate__animated animate__fadeIn">
             <div className="p-8 rounded-lg text-white shadow-none mb-8" style={{ backgroundColor: config.color }}>
@@ -317,7 +329,7 @@ const LevelTemplate = () => {
             <div className="w-20 h-20 text-white rounded-lg flex items-center justify-center mx-auto mb-6 shadow-none font-bold text-2xl" style={{ backgroundColor: config.color }}>D{selectedDay}</div>
             <h2 className="text-2xl font-bold dark:text-white uppercase mb-10">{loadedData.titles[selectedDay]}</h2>
             <div className="space-y-4">
-              <button onClick={() => setView('study')} className="w-full p-6 bg-white dark:bg-[#1E1E1E] border-2 rounded-lg flex items-center shadow-none" style={{ borderColor: config.color }}><div className="w-12 h-12 rounded-xl flex items-center justify-center mr-4" style={{ backgroundColor: `${config.color}20`, color: config.color }}><i className="ph-fill ph-book-open text-2xl"></i></div><div className="text-left font-bold dark:text-slate-100">단어 학습</div></button>
+              <button onClick={() => { setStudyIndex(0); setStudyDir(null); setStudyPanel('card'); setView('study'); }} className="w-full p-6 bg-white dark:bg-[#1E1E1E] border-2 rounded-lg flex items-center shadow-none" style={{ borderColor: config.color }}><div className="w-12 h-12 rounded-xl flex items-center justify-center mr-4" style={{ backgroundColor: `${config.color}20`, color: config.color }}><i className="ph-fill ph-book-open text-2xl"></i></div><div className="text-left font-bold dark:text-slate-100">단어 학습</div></button>
               <button onClick={() => setView('modeSelect')} className="w-full p-6 text-white rounded-lg flex items-center shadow-none" style={{ backgroundColor: config.color }}><div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mr-4"><i className="ph-fill ph-lightning text-2xl"></i></div><div className="text-left font-bold">퀴즈 도전</div></button>
               <button onClick={() => setView('dayMistakes')} disabled={dayMistakes.length === 0} className="w-full p-6 bg-white dark:bg-[#1E1E1E] border-2 rounded-lg flex items-center shadow-none border-[#70011D]/30 disabled:opacity-50"><div className="w-12 h-12 rounded-xl flex items-center justify-center mr-4" style={{ backgroundColor: '#70011D20', color: '#70011D' }}><i className="ph-fill ph-warning-circle text-2xl"></i></div><div className="text-left font-bold text-[#70011D] flex-1">오답 복습 <span className="ml-2 text-[10px] px-2 py-0.5 bg-[#70011D] text-white rounded-full font-bold">{dayMistakes.length}</span></div></button>
             </div>
@@ -338,14 +350,73 @@ const LevelTemplate = () => {
           </div>
         )}
 
-        {(view === 'study' || view === 'dayMistakes') && (
+        {studyPager && (() => {
+          const last = currentDayData.length - 1;
+          const i = Math.min(studyIndex, last);
+          const hidden = (p) => (studyPanel === p ? {} : { 'aria-hidden': true, inert: '' }); // 안 보이는 쪽은 포커스·스크린리더에서 제외
+          return (
+            <div className="h-full flex flex-col gap-4">
+              <div className="shrink-0 flex items-center gap-3">
+                <div className="flex-1 h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden"><div className="h-full rounded-full transition-all duration-300" style={{ width: `${((i + 1) / currentDayData.length) * 100}%`, backgroundColor: config.color }} /></div>
+                <span className="text-sm font-bold text-zinc-500 dark:text-zinc-400 tabular-nums">{i + 1} / {currentDayData.length}</span>
+              </div>
+              {/* 카드 / 단어 리스트 두 페이지(내 단어장과 같음): 카드에서 위로 밀면 리스트, 리스트 맨 위에서 아래로 당기면 카드 */}
+              <div className="relative flex-1 min-h-0 overflow-hidden">
+                <div className="h-full transition-transform duration-500 ease-[cubic-bezier(.32,.72,0,1)] motion-reduce:transition-none"
+                  style={{ transform: studyPanel === 'list' ? 'translateY(-100%)' : 'none' }}>
+                  <section {...studySwipe} {...hidden('card')} aria-label="단어 카드"
+                    className="h-full overflow-y-auto overscroll-contain touch-pan-y select-none flex flex-col gap-5">
+                    <div className="relative shrink-0">
+                      <PageTurn pageKey={i} dir={studyDir}><WordCard item={currentDayData[i]} color={config.color} speak={speak} centered uniform={{ emoji: currentDayData.some(w => w.emoji), sentence: currentDayData.some(w => w.sentence) }} favorite={isFavorite(levelId, currentDayData[i].word)} onToggleFavorite={() => toggleFavorite(levelId, currentDayData[i].word)} /></PageTurn>
+                      {/* 안내: 카드 왼쪽 위(별과 같은 줄, 원래 비어 있는 자리)에 들어올 때만 잠깐 */}
+                      <button type="button" onClick={() => setStudyPanel('list')}
+                        className={`absolute top-2 left-2 z-10 h-11 px-3 inline-flex items-center gap-1.5 rounded-full text-sm font-bold text-zinc-500 dark:text-zinc-400 active:opacity-70 transition-[opacity,visibility] duration-[1500ms] ease-out ${studyHint ? '' : 'opacity-0 invisible'}`}>
+                        <i className="ph-bold ph-caret-up" aria-hidden="true" />위로 밀면 단어 리스트
+                      </button>
+                    </div>
+                    <div className="shrink-0 grid grid-cols-2 gap-3">
+                      <button type="button" disabled={i === 0} onClick={() => goStudy('prev')} className="h-14 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#1E1E1E] font-bold text-zinc-700 dark:text-zinc-200 disabled:opacity-40">‹ 이전 단어</button>
+                      <button type="button" onClick={() => { if (i < last) { goStudy('next'); return; } recordActivity('study'); setView('modeSelect'); }} className="h-14 rounded-lg font-bold" style={{ backgroundColor: config.color, color: config.ink || '#fff' }}>{i < last ? '다음 단어 ›' : '학습 완료 · 퀴즈 ›'}</button>
+                    </div>
+                  </section>
+
+                  <section {...hidden('list')} aria-label="단어 리스트" className="h-full flex flex-col">
+                    <button type="button" {...listSwipe} onClick={() => setStudyPanel('card')}
+                      className="shrink-0 w-full touch-none select-none pb-2 border-b-2 border-zinc-300 dark:border-zinc-700 text-left">
+                      <span className="flex justify-center text-zinc-400 text-lg" aria-hidden="true"><i className="ph-bold ph-caret-down" /></span>
+                      <span className="flex items-baseline justify-between px-1">
+                        <span className="text-base font-bold text-zinc-900 dark:text-white">단어 리스트</span>
+                        <span className="text-sm font-bold text-zinc-500 dark:text-zinc-400 tabular-nums">{currentDayData.length}개 · 카드로 돌아가기</span>
+                      </span>
+                    </button>
+                    <ul {...listSwipe} className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y divide-y divide-zinc-200 dark:divide-zinc-800">
+                      {currentDayData.map((w, idx) => (
+                        <li key={idx}>
+                          <button type="button" aria-current={idx === i || undefined} onClick={() => { setStudyDir(idx < i ? 'prev' : 'next'); setStudyIndex(idx); setStudyPanel('card'); }}
+                            className={`w-full min-h-[56px] px-2 py-3 flex items-center gap-3 text-left active:opacity-70 ${idx === i ? 'bg-zinc-100 dark:bg-white/5' : ''}`}>
+                            {w.emoji && <span className="text-xl" aria-hidden="true">{w.emoji}</span>}
+                            <span className="min-w-0 truncate text-lg font-semibold text-zinc-900 dark:text-white" lang="en">{w.word}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {((view === 'study' && !cardStudy) || view === 'dayMistakes') && (
           <div className="animate__animated animate__fadeIn">
             <div className="mb-6 text-center font-bold dark:text-white">{view === 'study' ? `${loadedData.titles[selectedDay]} 단어 학습` : "내 오답 리스트"}</div>
             <div className="space-y-3">
               {(view === 'study' ? currentDayData : currentDayData.filter(i => dayMistakes.includes(i.word))).map((item, i) => (
                 <div key={i} className="p-5 bg-white dark:bg-[#1E1E1E] rounded-lg border flex items-center justify-between shadow-none">
-                  <div className="flex items-center gap-3 text-left">{item.emoji && <span className="text-2xl">{item.emoji}</span>}<div><p className="text-xl font-bold dark:text-white">{item.word}</p><p className="text-sm text-zinc-400">{item.meaning}</p></div></div>
-                  <button onClick={() => speak(item.word)} className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${config.color}15`, color: config.color }}><SpeakerIcon size={24} /></button>
+                  <div className="flex items-center gap-3 text-left">{item.emoji && <span className="text-2xl">{item.emoji}</span>}<div><p className="text-xl font-bold dark:text-white">{item.word}</p><p className="text-sm text-zinc-400">{item.meaning}</p>
+                    {item.sentence && <button type="button" onClick={() => speak(fillSentence(item.sentence, item.word))} aria-label={`예문 듣기: ${fillSentence(item.sentence, item.word)}`} className="mt-2 text-left text-base leading-snug text-zinc-700 dark:text-zinc-200 active:opacity-70" lang="en"><SentenceText sentence={item.sentence} word={item.word} color={config.color} /><SpeakerIcon size={16} className="ml-1.5 opacity-60" /></button>}
+                    {item.sentenceKo && <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{item.sentenceKo}</p>}</div></div>
+                  <div className="flex items-center gap-1 shrink-0"><FavoriteButton on={isFavorite(levelId, item.word)} onClick={() => toggleFavorite(levelId, item.word)} /><button onClick={() => speak(item.word)} className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${config.color}15`, color: config.color }}><SpeakerIcon size={24} /></button></div>
                 </div>
               ))}
             </div>
@@ -367,17 +438,13 @@ const LevelTemplate = () => {
               const improvement = Math.max(0, score - prevBest);
 
               setFinalScore(score);
-              saveProgress(selectedDay, score, currentDayData.length, quizMode);
-
-              const newHistory = { ...dayHistory };
-              if (!newHistory[selectedDay]) newHistory[selectedDay] = {};
-              newHistory[selectedDay].completed = true;
-              newHistory[selectedDay].bestScore = Math.max(prevBest, score);
-              setDayHistory(newHistory);
+              // 방금 틀린 단어·모드별 점수까지 들어간 저장 결과를 화면과 서버에 그대로 쓴다
+              const saved = saveProgress(selectedDay, score, currentDayData.length, quizMode);
+              setDayHistory(saved);
 
               // 결과 화면 즉시 전환 후 서버 저장 (Firebase 지연이 화면을 막지 않도록)
               setView('result');
-              recordActivity('quiz', score, currentDayData.length, quizMode, newHistory, improvement);
+              recordActivity('quiz', score, currentDayData.length, quizMode, saved, improvement);
           }} />
         )}
 

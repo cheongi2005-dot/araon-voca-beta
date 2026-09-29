@@ -19,6 +19,7 @@ const NotificationSettings = lazy(() => import('./pages/NotificationSettings'));
 const Settings = lazy(() => import('./pages/Settings'));
 const PhonicsStagePage = lazy(() => import('./pages/PhonicsStagePage'));
 const PhonicsPlayPage = lazy(() => import('./pages/PhonicsPlayPage'));
+const WeeklyWords = lazy(() => import('./pages/WeeklyWords'));
 
 const PUBLIC_PATHS = ['/admin', '/parent'];
 
@@ -56,6 +57,7 @@ function App() {
             {/* 메인 및 학습 */}
             <Route path="/" element={<Home />} />
             <Route path="/my-voca" element={<MyVoca />} />
+            <Route path="/weekly-words" element={<WeeklyWords />} />
             <Route path="/:levelId" element={<LevelTemplate />} />
 
             {/* 파닉스 학습 */}

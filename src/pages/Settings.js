@@ -2,9 +2,10 @@ import AppHeader from '../components/AppHeader';
 import AraonIcon from '../components/AraonIcon';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { auth, db } from '../firebase-config';
-import { signOut, deleteUser, onAuthStateChanged } from 'firebase/auth';
-import { doc, deleteDoc } from 'firebase/firestore';
+import { auth, db, getFunctionsInstance } from '../firebase-config';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { doc, updateDoc, deleteField } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { useSpeech } from '../hooks/useSpeech';
 import { safeGetItem } from '../utils/storage';
 import { useTheme } from '../hooks/useTheme';
@@ -57,6 +58,15 @@ const Settings = () => {
     setIsSigningOut(true);
     try {
       localStorage.removeItem('araon_cached_user');
+      // 이 기기의 푸시 토큰을 계정에서 떼어낸다 (안 그러면 로그아웃 후에도, 다음 사람이 써도 이 계정 알림이 이 기기로 옴).
+      // 오프라인이면 응답을 기다리지 않고 로그아웃 (쓰기는 이 계정이 다시 로그인할 때 전송됨)
+      const email = auth.currentUser?.email;
+      if (email) {
+        await Promise.race([
+          updateDoc(doc(db, 'users', email), { fcmToken: deleteField() }).catch(() => {}),
+          new Promise(resolve => setTimeout(resolve, 2000))
+        ]);
+      }
       await signOut(auth);
       navigate('/');
     } catch (error) {
@@ -72,19 +82,16 @@ const Settings = () => {
     }
     setModal(null);
     try {
-      const user = auth.currentUser;
-      if (!user) return;
-      await deleteDoc(doc(db, "users", user.email));
-      await deleteUser(user);
+      if (!auth.currentUser) return;
+      // users 문서 삭제는 보안 규칙상 관리자만 가능하므로, 서버(deleteMyAccount)가 문서·랭킹·문의·계정을 함께 지운다
+      const functions = await getFunctionsInstance();
+      await httpsCallable(functions, 'deleteMyAccount')();
       localStorage.clear();
+      await signOut(auth).catch(() => {});
       window.location.replace('/');
     } catch (error) {
       console.error("탈퇴 오류:", error);
-      if (error.code === 'auth/requires-recent-login') {
-        localStorage.clear();
-        await signOut(auth);
-        window.location.replace('/');
-      }
+      alert('탈퇴 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     }
   };
 
@@ -99,7 +106,6 @@ const Settings = () => {
       <main className="flex-1 p-6 space-y-2">
         <h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 tracking-tight px-2 mb-4 uppercase flex items-center gap-2"><AraonIcon name="settings" size={24} />Settings</h2>
 
-        <MenuCard icon="level" title="학습 레벨 변경" sub="나에게 맞는 학습 코스 선택" onClick={() => navigate('/level-home')} />
         <MenuCard icon="bell" title="알림 설정" sub="복습 및 출석 알림 관리" onClick={() => navigate('/settings/notifications')} />
         <MenuCard icon="voice" title="음성(Voice) 설정" sub={useAI ? '✨ AI 프리미엄 음성 사용 중' : (voices[selectedVoiceIndex]?.name || '음성 로드 중...')} onClick={() => setShowVoicePicker(true)} />
         

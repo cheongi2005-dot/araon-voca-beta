@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 페이지 맨 위·맨 아래에서 더 당겨지며 튕기지 않게. 문서 스크롤에는 body가 아니라 html에 줘야 적용된다. */
+html {
+  overscroll-behavior-y: none;
+}
+
 body {
   margin: 0;
   /* 영문 Fraunces, 한글 Wanted Sans */

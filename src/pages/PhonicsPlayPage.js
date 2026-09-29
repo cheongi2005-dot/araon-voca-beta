@@ -5,6 +5,11 @@ import { useTheme } from '../hooks/useTheme';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { PHONICS_STAGES } from '../data/phonicsData';
+import { auth, db } from '../firebase-config';
+import { doc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { safeGetItem, safeSetItem } from '../utils/storage';
+import { mergeLevelData } from '../utils/progress';
+import { useUserData } from '../contexts/UserDataContext';
 
 const PhonicsPlayPage = () => {
   const { stageId } = useParams();
@@ -21,6 +26,40 @@ const PhonicsPlayPage = () => {
   const [quizSelected, setQuizSelected] = useState(null);
   const [quizScore, setQuizScore] = useState(0);
   const [isQuizDone, setIsQuizDone] = useState(false);
+  const [startTime] = useState(() => Date.now());
+  const { userData } = useUserData();
+
+  // 스테이지 완료 기록: 다른 레벨의 Day 퀴즈와 같은 형식(로컬 진도 + levelProgress + attendance).
+  // 대시보드가 "Day N"으로 표시하므로 day에는 스테이지 번호를 쓴다.
+  const recordStageComplete = () => {
+    const key = LEVEL_CONFIG.phonics.key;
+    const stageNo = String(PHONICS_STAGES.indexOf(stageData) + 1);
+    const current = mergeLevelData(userData?.levelProgress?.[key], safeGetItem(key, {}));
+    const prev = current[stageNo] || {};
+    const saved = {
+      ...current,
+      [stageNo]: { ...prev, completed: true, bestScore: Math.max(prev.bestScore || 0, quizScore), total: quizPool.length },
+      lastUpdated: Date.now()
+    };
+    safeSetItem(key, JSON.stringify(saved));
+
+    const email = auth.currentUser?.email;
+    if (!email) return;
+    updateDoc(doc(db, 'users', email), {
+      lastActive: serverTimestamp(),
+      [`levelProgress.${key}`]: saved,
+      attendance: arrayUnion({
+        date: new Date().toISOString(),
+        type: '문제풀이',
+        levelId: 'phonics',
+        day: stageNo,
+        studyTime: Math.max(1, Math.round((Date.now() - startTime) / 60000)),
+        score: quizScore,
+        total: quizPool.length,
+        method: 'choice'
+      })
+    }).catch(e => console.error('[Phonics] 학습 기록 저장 실패:', e));
+  };
 
   const initQuizPool = useCallback(() => {
     if (!stageData) return;
@@ -378,8 +417,9 @@ case 'quiz':
               disabled={(currentStep.type === 'quiz' && !isQuizDone)}
               onClick={() => {
                 if (!isLast) setCurrentStepIndex(prev => prev + 1);
-                else { 
-                  alert('🎉 훌륭해요! 스테이지를 완료했습니다.'); 
+                else {
+                  recordStageComplete();
+                  alert('🎉 훌륭해요! 스테이지를 완료했습니다.');
                   navigate('/phonics'); 
                 }
               }}

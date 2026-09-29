@@ -5,18 +5,23 @@ import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebase-config';
 import { doc, setDoc } from 'firebase/firestore';
 import LoadingScreen from '../components/LoadingScreen';
-import { safeGetItem } from '../utils/storage';
+import { safeGetItem, safeSetItem } from '../utils/storage';
 import { useTheme } from '../hooks/useTheme';
 import { useUserData } from '../contexts/UserDataContext';
+import { LEVEL_CONFIG } from '../config/levelConfig';
+import { countCompletedDays, mergeLevelData } from '../utils/progress';
+
+// 레벨 번호(Level 1~5)·전체 Day 수는 LEVEL_CONFIG에서 가져온다 (네모 칸에 내부 id를 보여주지 않기 위해)
+const CONFIG_BY_KEY = Object.fromEntries(Object.values(LEVEL_CONFIG).map(c => [c.key, c]));
 
 const LEVEL_MAP = [
-  { id: "00", name: "Phonics", title: "파닉스 학습", sub: "(소리의 규칙)", path: "/phonics", color: "#4F46E5", key: "araon_voca_phonics", days: 1 },
-  { id: "01", name: "Foundation", title: "초등 기초 100", path: "/elementary-100", color: "#FFD000", key: "araon_voca_elementary_100", days: 100 },
-  { id: "02", name: "Essential", title: "Level 1", sub: "(초등 필수)", path: "/level-1", color: "#E29526", key: "araon_voca_level_1", days: 30 },
-  { id: "03", name: "Intermediate", title: "Level 2", sub: "(중등 기초)", path: "/level-2", color: "#9CAF88", key: "araon_voca_level_2", days: 30 },
-  { id: "04", name: "Advanced", title: "Level 3", sub: "(중등 심화)", path: "/level-3", color: "#006039", key: "araon_voca_level_3", days: 30 },
-  { id: "05", name: "Expert", title: "Level 4", sub: "(고등 기초)", path: "/level-4", color: "#151E3D", key: "araon_voca_level_4", days:25 },
-  { id: "06", name: "Academic", title: "Level 5", sub: "(고등 심화)", path: "/level-5", color: "#000080", key: "araon_voca_level_5", days: 30 },
+  { id: "00", name: "Phonics", title: "파닉스 학습", sub: "(소리의 규칙)", path: "/phonics", color: "#4F46E5", key: "araon_voca_phonics" },
+  { id: "01", name: "Foundation", title: "초등 기초 100", path: "/elementary-100", color: "#FFD000", key: "araon_voca_elementary_100" },
+  { id: "02", name: "Essential", title: "Level 1", sub: "(초등 필수)", path: "/level-1", color: "#E29526", key: "araon_voca_level_1" },
+  { id: "03", name: "Intermediate", title: "Level 2", sub: "(중등 기초)", path: "/level-2", color: "#9CAF88", key: "araon_voca_level_2" },
+  { id: "04", name: "Advanced", title: "Level 3", sub: "(중등 심화)", path: "/level-3", color: "#006039", key: "araon_voca_level_3" },
+  { id: "05", name: "Expert", title: "Level 4", sub: "(고등 기초)", path: "/level-4", color: "#151E3D", key: "araon_voca_level_4" },
+  { id: "06", name: "Academic", title: "Level 5", sub: "(고등 심화)", path: "/level-5", color: "#000080", key: "araon_voca_level_5" },
 ];
 
 function LevelHome() {
@@ -38,39 +43,14 @@ function LevelHome() {
     const timer = setTimeout(() => {
       const progressMap = {};
       LEVEL_MAP.forEach(level => {
-        const dbData = userData.levelProgress?.[level.key] || {};
-        let localData = {};
-        try {
-          localData = JSON.parse(localStorage.getItem(level.key) || '{}');
-        } catch (e) {
-          localData = {};
-        }
+        const finalData = mergeLevelData(userData.levelProgress?.[level.key], safeGetItem(level.key, {}));
+        safeSetItem(level.key, JSON.stringify(finalData));
 
-        const dbTime = dbData.lastUpdated || 0;
-        const localTime = localData.lastUpdated || 0;
-        const finalData = Object.keys(dbData).length > 0
-          ? (dbTime >= localTime ? { ...dbData } : localData)
-          : localData;
-
-        localStorage.setItem(level.key, JSON.stringify(finalData));
-
-        let completedCount = Object.values(finalData).filter(item => item && typeof item === 'object' && item.completed).length;
-
-        if (completedCount === 0 && Array.isArray(userData.attendance)) {
-          const levelPathId = level.path.slice(1);
-          const completedDaysSet = new Set();
-          userData.attendance.forEach(record => {
-            if (typeof record === 'string' || !record.day) return;
-            if (!String(record.type || '').includes('문제풀이')) return;
-            if (String(record.levelId || '').toLowerCase() !== levelPathId.toLowerCase()) return;
-            completedDaysSet.add(String(record.day));
-          });
-          completedCount = completedDaysSet.size;
-        }
+        const completedCount = countCompletedDays(finalData, userData.attendance, level.path.slice(1));
 
         progressMap[level.id] = {
           completed: completedCount,
-          percent: Math.min(Math.round((completedCount / level.days) * 100), 100)
+          percent: Math.min(Math.round((completedCount / CONFIG_BY_KEY[level.key].days) * 100), 100)
         };
       });
       setProgressData(progressMap);
@@ -103,7 +83,7 @@ function LevelHome() {
 
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
-      <AppHeader isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} onBack={() => navigate('/settings')} />
+      <AppHeader isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} onBack={() => navigate('/')} />
 
       <main className="flex-1 py-8 px-6 overflow-y-auto">
         <div className="mb-10 px-2">
@@ -122,7 +102,7 @@ function LevelHome() {
                   <div className="flex items-center justify-between relative z-10">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-none" style={{ backgroundColor: level.color }}>
-                        {level.id === "00" ? <AraonIcon name="help" size={32} style={{ background: '#F8F1E5', borderRadius: 8 }} /> : level.id}
+                        <AraonIcon name={CONFIG_BY_KEY[level.key].icon} tone={CONFIG_BY_KEY[level.key].iconTone} size={36} style={{ background: '#F8F1E5', borderRadius: 8, padding: 2 }} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2 mb-0.5">
@@ -137,7 +117,7 @@ function LevelHome() {
                   <div className="mt-3 pt-3 border-t border-zinc-50 dark:border-zinc-800/50">
                     <div className="flex justify-between items-center mb-2 px-0.5">
                       <span className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase tracking-tighter">Progress</span>
-                      <span className="text-[10px] font-bold text-zinc-400">{progress.completed} / {level.days} {level.name === "Phonics" ? "Stages" : "Days"}</span>
+                      <span className="text-[10px] font-bold text-zinc-400">{progress.completed} / {CONFIG_BY_KEY[level.key].days} {level.name === "Phonics" ? "Stages" : "Days"}</span>
                     </div>
                     <div className="w-full h-1.5 bg-zinc-50 dark:bg-zinc-900 rounded-full overflow-hidden">
                       <div className="h-full transition-all duration-1000 rounded-full" style={{ width: `${progress.percent}%`, backgroundColor: level.color, opacity: progress.percent > 0 ? 1 : 0.3 }} />

@@ -13,6 +13,7 @@ const ParentPage = () => {
   const [showRedDot, setShowRedDot] = useState(false); // 🎯 빨간 점 표시 여부
   const [hasReadReplies, setHasReadReplies] = useState(false); // 🎯 읽음 상태 기록
   const [phoneInput, setPhoneInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [activeTab, setActiveTab] = useState('report'); 
@@ -180,13 +181,14 @@ const ParentPage = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     const cleanedPhone = phoneInput.replace(/\D/g, '');
+    if (!nameInput.trim()) return alert("학생 이름을 입력해주세요.");
     if (cleanedPhone.length < 10) return alert("올바른 번호를 입력해주세요.");
 
     setLoading(true);
     try {
       const functions = await getFunctionsInstance();
       const parentLogin = httpsCallable(functions, 'parentLogin');
-      const result = await parentLogin({ phone: cleanedPhone });
+      const result = await parentLogin({ name: nameInput.trim(), phone: cleanedPhone });
       const { customToken, studentEmail } = result.data;
 
       await signInWithCustomToken(auth, customToken);
@@ -204,6 +206,7 @@ const ParentPage = () => {
     signOut(auth).catch(() => {});
     setStudent(null);
     setPhoneInput("");
+    setNameInput("");
     setMyInquiries([]);
     setShowRedDot(false);
     setHasReadReplies(false);
@@ -306,8 +309,9 @@ const ParentPage = () => {
             <i className="ph-fill ph-users-three text-emerald-500 text-3xl"></i>
           </div>
           <h2 className="text-xl font-black text-slate-800 mb-2">학부모 리포트 열람</h2>
-          <p className="text-[11px] font-bold text-slate-400 mb-6">등록된 학생의 휴대전화 번호를 입력해주세요.</p>
+          <p className="text-[11px] font-bold text-slate-400 mb-6">등록된 학생의 이름과 휴대전화 번호를 입력해주세요.</p>
           <form onSubmit={handleLogin} className="space-y-3">
+            <input value={nameInput} onChange={e => setNameInput(e.target.value)} placeholder="학생 이름" className="w-full p-4 bg-slate-50 rounded-2xl text-center font-black outline-none focus:ring-2 focus:ring-emerald-400 text-sm" disabled={loading} />
             <input type="tel" value={phoneInput} onChange={handlePhoneChange} maxLength={13} placeholder="010-0000-0000" className="w-full p-4 bg-slate-50 rounded-2xl text-center font-black outline-none focus:ring-2 focus:ring-emerald-400 text-sm" disabled={loading} />
             <button type="submit" disabled={loading} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-sm active:scale-95 transition-all disabled:opacity-50">{loading ? '확인 중...' : '리포트 보기'}</button>
           </form>

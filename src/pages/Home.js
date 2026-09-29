@@ -1,5 +1,5 @@
 import AppHeader from '../components/AppHeader';
-import AraonIcon, { rankIconName } from '../components/AraonIcon';
+import AraonIcon from '../components/AraonIcon';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../firebase-config';
@@ -8,9 +8,10 @@ import { LEVEL_CONFIG } from '../config/levelConfig';
 import LoadingScreen from '../components/LoadingScreen';
 import { safeGetItem, safeSetItem } from '../utils/storage';
 import { useTheme } from '../hooks/useTheme';
-import { getWeekBounds, getWeekKey } from '../utils/dateUtils';
-import { getMistakeWords, migrateAttempts, MISTAKES_CACHE_KEY, refreshMistakesCache } from '../utils/mistakes';
+import { getWeekBounds, getWeekKey, parseDate } from '../utils/dateUtils';
+import { getMistakeWords, MISTAKES_CACHE_KEY, refreshMistakesCache } from '../utils/mistakes';
 import { useUserData } from '../contexts/UserDataContext';
+import { countCompletedDays, getReviewDays, getWeeklyQuizDays, mergeLevelData } from '../utils/progress';
 
 // 🎯 leaderboard 컬렉션 백필 및 검증 완료 — 다시 노출합니다.
 const RANKING_ENABLED = false;
@@ -28,15 +29,6 @@ const calculateAllMistakes = () => {
   return allMistakesSet.size;
 };
 
-const getCheeringMessage = (rank) => {
-  if (!rank) return "오늘의 도전이 내일의 순위를 바꿔요! 🌱";
-  if (rank === 1) return "넘볼 수 없는 1위! 압도적이에요! 👑";
-  if (rank === 2) return "정상까지 단 한 걸음! 당신은 할 수 있어요! 🥈";
-  if (rank === 3) return "시상대에 올랐습니다! 훌륭해요! 🎖️";
-  if (rank <= 10) return "명예의 전당 TOP10! 이 기세 계속 가요! 🔥";
-  return "오늘의 도전이 내일의 순위를 바꿔요! 🌱";
-};
-
 function Home() {
   const navigate = useNavigate();
   const [isDark, setIsDark] = useTheme();
@@ -47,6 +39,7 @@ function Home() {
 
   const [isRankLoading, setIsRankLoading] = useState(false); // 🎯 랭킹 전용 로딩 상태 추가
   const [totalMistakes, setTotalMistakes] = useState(0); // 🎯 에러 단어 카운트 상태
+  const [, bumpProgress] = useState(0); // DB 진도를 로컬에 복원한 뒤 진도 칸을 다시 그리기 위함
   const hasInitRef = useRef(false); // 진도 동기화/랭킹 조회는 최초 1회만
 
   useEffect(() => {
@@ -61,23 +54,14 @@ function Home() {
   const syncLevelProgressToLocal = (levelProgress) => {
     if (!levelProgress) return;
     setTimeout(() => {
+      // 다른 화면(LevelTemplate/MyVoca/LevelHome)과 같은 규칙: Day 단위로 합치고, 겹치는 Day는 최신(같으면 DB)
       Object.keys(levelProgress).forEach(levelKey => {
-        const dbLevelData = levelProgress[levelKey];
-        const localLevelData = safeGetItem(levelKey, { lastUpdated: 0 });
-
-        // 다른 화면(LevelTemplate/MyVoca/LevelHome)과 같은 규칙: 최신이 이기고, 같으면 DB
-        if (dbLevelData && (dbLevelData.lastUpdated || 0) >= (localLevelData.lastUpdated || 0)) {
-          const restored = JSON.parse(JSON.stringify(dbLevelData));
-          Object.keys(restored).forEach(dayKey => {
-            if (dayKey === 'lastUpdated') return;
-            const day = restored[dayKey];
-            if (day?.attempts !== undefined) day.attempts = migrateAttempts(day.attempts);
-          });
-          safeSetItem(levelKey, JSON.stringify(restored));
-        }
+        if (!levelProgress[levelKey]) return;
+        safeSetItem(levelKey, JSON.stringify(mergeLevelData(levelProgress[levelKey], safeGetItem(levelKey, {}))));
       });
       refreshMistakesCache();
       setTotalMistakes(Number(localStorage.getItem(MISTAKES_CACHE_KEY) || '0'));
+      bumpProgress(n => n + 1);
     }, 100);
   };
 
@@ -178,27 +162,13 @@ function Home() {
     }
   }, []);
 
-  const weeklyStats = useMemo(() => {
+  // 이번 주(월~일) 학습 시간(분). 학습 단어 수는 getWeeklyQuizDays 기준으로 따로 센다.
+  const weeklyMinutes = useMemo(() => {
     const { startOfWeek, endOfWeek } = getWeekBounds(0);
-
-    const dailyStats = Array(7).fill(null).map(() => ({ totalWords: 0, totalTime: 0 }));
-    let wWords = 0; let wTime = 0;
-
-    if (studentData?.attendance) {
-      studentData.attendance.forEach(act => {
-        const d = new Date(act.date);
-        if (d >= startOfWeek && d <= endOfWeek) {
-          let idx = d.getDay() - 1; if (idx === -1) idx = 6;
-          dailyStats[idx].totalTime += (act.studyTime || 1);
-          wTime += (act.studyTime || 1);
-          if (act.type?.includes('문제풀이')) {
-            dailyStats[idx].totalWords += (act.score || 0);
-            wWords += (act.score || 0);
-          }
-        }
-      });
-    }
-    return { dailyStats, weeklyTotalWords: wWords, weeklyTotalTime: wTime, maxWords: Math.max(...dailyStats.map(d => d.totalWords), 1) };
+    return (studentData?.attendance || []).reduce((sum, act) => {
+      const d = parseDate(act?.date);
+      return d && d >= startOfWeek && d <= endOfWeek ? sum + (act.studyTime || 1) : sum;
+    }, 0);
   }, [studentData]);
 
   const currentLevelInfo = useMemo(() => {
@@ -208,108 +178,78 @@ function Home() {
 
   if (isLoading) return <LoadingScreen />;
 
+  const levelPath = currentLevelInfo.path || `/${Object.keys(LEVEL_CONFIG).find(k => LEVEL_CONFIG[k] === currentLevelInfo)}`;
+  const levelInk = currentLevelInfo.ink || '#FFFFFF';
+  const levelDone = countCompletedDays(safeGetItem(currentLevelInfo.key, {}), studentData?.attendance, levelPath.slice(1));
+  const levelPct = Math.min(100, Math.round((levelDone / currentLevelInfo.days) * 100));
+  const minutes = weeklyMinutes;
+  const homeStats = [
+    [`${getWeeklyQuizDays(studentData?.attendance).reduce((n, d) => n + d.total, 0)}개`, '이번 주 학습 단어', '/weekly-words'],
+    [minutes >= 60 ? `${Math.floor(minutes / 60)}시간 ${minutes % 60}분` : `${minutes}분`, '이번 주 학습 시간'],
+    RANKING_ENABLED
+      ? [isRankLoading && !myRankInfo ? '…' : myRankInfo?.score > 0 ? `${myRankInfo.rank}위` : '-', '레벨 랭킹', '/ranking']
+      : [`${getReviewDays(studentData?.attendance).reduce((n, d) => n + d.total, 0)}개`, '복습할 단어', '/my-voca?tab=review'],
+  ];
+
   return (
     <div className="min-h-screen flex flex-col max-w-md mx-auto bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans antialiased overflow-x-hidden">
       <AppHeader isDark={isDark} onToggleTheme={() => setIsDark(!isDark)} onBack={() => navigate('/settings')} home />
 
-      <main className="flex-1 py-6 overflow-y-auto">
-        <div className="px-6 flex flex-col gap-6">
-          <div>
-            <div className="flex items-center justify-between mb-3 px-2"><h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 tracking-tight">학습 진행 상황</h2></div>
-            <div className="flex flex-col gap-3">
-              <Link to={currentLevelInfo.title === 'Phonics' ? '/phonics' : `/${currentLevelInfo.title === 'Foundation' ? 'elementary-100' : Object.keys(LEVEL_CONFIG).find(k => LEVEL_CONFIG[k].title === currentLevelInfo.title)}`} className="block group">
-                <div className="p-5 border border-zinc-200 dark:border-zinc-800 rounded-lg flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-none active:opacity-80 transition-all">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-inner font-bold text-lg" style={{ backgroundColor: currentLevelInfo.color }}>{currentLevelInfo.id === '00' ? <i className="ph-fill ph-headphones"></i> : currentLevelInfo.id}</div>
-                    <div><h3 className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: currentLevelInfo.color }}>{currentLevelInfo.title}</h3><p className="text-lg font-bold tracking-tight dark:text-white">{currentLevelInfo.subTitle}</p></div>
-                  </div>
-                  <i className="ph-bold ph-caret-right text-zinc-200 group-hover:text-zinc-400 transition-colors"></i>
-                </div>
-              </Link>
-              <Link to="/my-voca" className="block group">
-                <div className="p-5 border border-zinc-200 dark:border-zinc-800 rounded-lg flex items-center justify-between bg-white dark:bg-[#1E1E1E] shadow-none active:opacity-80 transition-all">
-                  <div className="flex items-center gap-4">
-                    <AraonIcon name="book" size={48} />
-                    <div>
-                      <h3 className="text-[9px] font-bold uppercase tracking-widest text-[#70011D]">Personal Collection</h3>
-                      <p className="text-lg font-semibold dark:text-white tracking-tight">나의 단어장 <span className="ml-2 text-xs px-2 py-0.5 bg-[#70011D] text-white rounded-full font-bold">{totalMistakes}</span></p>
-                    </div>
-                  </div>
-                  <i className="ph-bold ph-caret-right text-[#70011D]/40 group-hover:text-[#70011D] transition-colors"></i>
-                </div>
-              </Link>
-            </div>
-          </div>
+      <main className="flex-1 px-6 py-8 overflow-y-auto flex flex-col gap-6">
+        <section>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-white">{studentData?.name ? `${studentData.name}님, 좋은 하루예요.` : '좋은 하루예요.'}</h1>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">오늘도 한 걸음 더 나아가요.</p>
+        </section>
 
-          <div>
-            <div className="flex items-center justify-between mb-3 px-2"><h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 tracking-tight flex items-center gap-2"><AraonIcon name="report" size={22} />주간 학습 리포트</h2></div>
-            <Link to="/dashboard" className="block group">
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div className="p-4 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-lg shadow-none flex items-center gap-3 active:opacity-80 transition-all">
-                  <AraonIcon name="words" size={36} />
-                  <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Words</p><div className="flex items-baseline gap-1"><span className="text-xl font-bold dark:text-white tracking-tight">{weeklyStats.weeklyTotalWords}</span><span className="text-[11px] font-bold text-zinc-400">개</span></div></div>
-                </div>
-                <div className="p-4 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-lg shadow-none flex items-center gap-3 active:opacity-80 transition-all">
-                  <AraonIcon name="clock" size={36} />
-                  <div><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Weekly Time</p><div className="flex items-baseline gap-1"><span className="text-xl font-bold dark:text-white tracking-tight">{weeklyStats.weeklyTotalTime}</span><span className="text-[11px] font-bold text-zinc-400">분</span></div></div>
-                </div>
-              </div>
-              <div className="p-6 bg-white dark:bg-[#1E1E1E] border border-zinc-100 dark:border-zinc-800 rounded-lg shadow-none active:opacity-80 transition-all relative">
-                <div className="flex items-center justify-between mb-5"><h3 className="text-[10px] font-bold text-zinc-300 dark:text-zinc-600 uppercase tracking-widest">Weekly Activity (월-일)</h3><i className="ph-bold ph-caret-right text-zinc-200 group-hover:text-zinc-400 transition-colors"></i></div>
-                <div className="flex items-end justify-between h-24 gap-2 px-2">
-                  {['월', '화', '수', '목', '금', '토', '일'].map((day, i) => {
-                    const stat = weeklyStats.dailyStats[i];
-                    const heightPercent = stat.totalWords > 0 ? Math.max((stat.totalWords / weeklyStats.maxWords) * 100, 20) : 10;
-                    let todayIdx = new Date().getDay() - 1; if (todayIdx === -1) todayIdx = 6;
-                    const isToday = todayIdx === i;
-                    return (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-3 h-full justify-end">
-                        <div className="w-full max-w-[24px] rounded-full transition-all duration-1000" style={{ height: `${heightPercent}%`, backgroundColor: stat.totalWords > 0 ? (isToday ? currentLevelInfo.color : `${currentLevelInfo.color}70`) : (isDark ? '#18181b' : '#f4f4f5') }}></div>
-                        <span className={`text-[11px] font-bold ${isToday ? 'text-zinc-800 dark:text-white' : 'text-zinc-300 dark:text-zinc-600'}`}>{day}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </Link>
+        <section aria-label="현재 레벨" className="flex rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#1E1E1E] overflow-hidden">
+          <div className="w-32 shrink-0 p-4 flex flex-col items-center justify-center gap-2.5 text-center" style={{ backgroundColor: currentLevelInfo.color, color: levelInk }}>
+            <AraonIcon name={currentLevelInfo.icon} tone={currentLevelInfo.iconTone} size={64} style={{ background: '#F8F1E5', borderRadius: 12, padding: 4 }} />
+            {currentLevelInfo.level
+              ? <span className="text-[22px] font-bold leading-none">Level {currentLevelInfo.level}</span>
+              : <span className="text-base font-bold leading-tight">{currentLevelInfo.title}</span>}
           </div>
-
-          {RANKING_ENABLED && (
+          <div className="flex-1 min-w-0 p-4 flex flex-col justify-center gap-3">
             <div>
-              <div className="flex items-center justify-between mb-3 px-2"><h2 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 tracking-tight">명예의 전당 & 랭킹</h2></div>
-              <Link to="/ranking" className="block group">
-                <div className="p-5 border border-zinc-200 dark:border-zinc-800 rounded-lg flex items-center bg-white dark:bg-[#1E1E1E] shadow-none active:opacity-80 transition-all">
-                  {isRankLoading && !myRankInfo ? (
-                    <div className="text-center w-full py-2">
-                      <p className="text-xs font-bold text-zinc-400 animate-pulse">랭킹 데이터를 불러오는 중... ⏳</p>
-                    </div>
-                  ) : myRankInfo ? (
-                    <>
-                      <div className="w-12 h-12 bg-[#FDF2F2] dark:bg-[#2D1B1B] rounded-lg flex items-center justify-center flex-shrink-0">
-                        {myRankInfo.score > 0 && myRankInfo.rank <= 3 ? (
-                          <span className="text-2xl"><AraonIcon name={rankIconName(myRankInfo.rank)} size={32} /></span>
-                        ) : (
-                          <span className="text-[#70011D] dark:text-[#FF4D4D] font-bold text-lg italic">{myRankInfo.score > 0 ? myRankInfo.rank : "-"}</span>
-                        )}
-                      </div>
-                      <div className="ml-4 flex-1">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-[10px] font-bold text-[#70011D] dark:text-[#FF4D4D] uppercase tracking-widest">{myRankInfo.levelTitle} 챔프</span>
-                          <span className="px-2 py-0.5 bg-[#FDF2F2] dark:bg-[#70011D]/30 text-[#70011D] dark:text-[#FF4D4D] rounded-full text-[9px] font-bold">상위 {myRankInfo.score > 0 ? Math.max(1, Math.round((myRankInfo.rank / myRankInfo.levelTotalUsers) * 100)) : 100}%</span>
-                        </div>
-                        <div className="flex items-baseline gap-1.5"><span className="text-2xl font-bold dark:text-white tracking-tight">{myRankInfo.score > 0 ? `${myRankInfo.rank}위` : "도전 시작!"}</span><span className="text-xs font-bold text-zinc-400">/ {myRankInfo.levelTotalUsers}명 | {myRankInfo.score} 단어</span></div>
-                        <p className="text-[11px] font-bold text-zinc-400 mt-0.5">{myRankInfo.score > 0 ? getCheeringMessage(myRankInfo.rank) : "오늘 첫 단어를 학습해보세요! 🌱"}</p>
-                      </div>
-                      <i className="ph-bold ph-caret-right text-zinc-300 dark:text-zinc-600 group-hover:text-[#70011D] transition-colors"></i>
-                    </>
-                  ) : (
-                    <div className="text-center w-full py-2"><p className="text-xs font-bold text-zinc-400">학습을 시작하고 랭킹을 확인해보세요! 🚀</p></div>
-                  )}
-                </div>
-              </Link>
+              <p className="text-[22px] font-bold break-words text-zinc-900 dark:text-white">{currentLevelInfo.level ? currentLevelInfo.title : currentLevelInfo.subTitle}</p>
+              {currentLevelInfo.level && <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{currentLevelInfo.subTitle.replace(/^Level\s+\d+\s*/, '')}</p>}
             </div>
-          )}
+            <div>
+              <div className="flex justify-between text-xs font-bold text-zinc-500 dark:text-zinc-400 tabular-nums">
+                <span>{levelPct}% 완료</span>
+                <span>{levelDone} / {currentLevelInfo.days} {currentLevelInfo.id === '00' ? 'Stage' : 'Day'}</span>
+              </div>
+              <div className="mt-1.5 h-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={currentLevelInfo.days} aria-valuenow={levelDone}>
+                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${levelPct}%`, backgroundColor: currentLevelInfo.color }} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="grid grid-cols-3 divide-x divide-zinc-200 dark:divide-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#1E1E1E] text-center overflow-hidden">
+          {homeStats.map(([value, label, to]) => {
+            const body = <>
+              <p className="text-xl font-bold text-zinc-900 dark:text-white tabular-nums">{value}</p>
+              <p className="mt-1 text-[11px] font-bold text-zinc-500 dark:text-zinc-400">{label}{to && ' ›'}</p>
+            </>;
+            return to
+              ? <Link key={label} to={to} className="py-4 active:bg-zinc-50 dark:active:bg-white/5 transition-colors">{body}</Link>
+              : <div key={label} className="py-4">{body}</div>;
+          })}
         </div>
+
+        <Link to={levelPath} className="h-14 rounded-lg flex items-center justify-center gap-2 text-lg font-bold active:opacity-80 transition-opacity" style={{ backgroundColor: currentLevelInfo.color, color: levelInk }}>
+          학습하기 <i className="ph-bold ph-caret-right" />
+        </Link>
+
+        <nav className="grid grid-cols-4 gap-2">
+          {[['/my-voca', 'book', '내 단어장', totalMistakes], ['/dashboard', 'report', '학습 통계'], ['/level-home', 'level', '레벨 변경'], ['/ranking', 'ranking', '랭킹']].map(([to, icon, label, badge]) => (
+            <Link key={to} to={to} className="relative flex flex-col items-center gap-2 py-4 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#1E1E1E] active:opacity-80 transition-opacity">
+              <AraonIcon name={icon} size={28} />
+              <span className="text-xs font-bold text-zinc-700 dark:text-zinc-200">{label}</span>
+              {badge > 0 && <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 rounded-full bg-[#70011D] text-white text-[10px] font-bold flex items-center justify-center">{badge}</span>}
+            </Link>
+          ))}
+        </nav>
       </main>
     </div>
   );

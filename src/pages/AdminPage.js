@@ -85,6 +85,23 @@ const AdminPage = () => {
     }
   };
 
+  // 2026-06~09 레벨 퀴즈 기록이 "levelProgress.키.Day"처럼 이름에 점이 든 필드로 잘못 저장된 것을
+  // 정상 위치(levelProgress)로 옮기고 나머지 잘못된 필드를 지웁니다. 1회 실행.
+  const handleMigrateDottedFields = async () => {
+    if (!window.confirm("잘못 저장된 학습 기록 필드를 정리합니다. 계속할까요?")) return;
+    setBackfillLoading(true);
+    try {
+      const functions = await getFunctionsInstance();
+      const result = await httpsCallable(functions, 'migrateDottedFields')();
+      alert(`필드 정리 완료! (${result.data.updated}명 정리)`);
+    } catch (error) {
+      console.error("필드 정리 오류:", error);
+      alert("실패: " + (error.message || "알 수 없는 오류"));
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
+
   // 🎯 보안 규칙 강화(본인 문의만 열람 가능) 이전에 저장된 문의들은 studentAuthEmail이 없어
   // 학생/학부모 본인에게도 안 보이므로, 1회 실행해 기존 문의에 해당 필드를 채워 넣습니다.
   const handleBackfillInquiryOwners = async () => {
@@ -226,6 +243,7 @@ const AdminPage = () => {
               </div>
               <button onClick={handleBackfillLeaderboard} disabled={backfillLoading} className="px-4 py-2.5 bg-white text-indigo-500 rounded-xl text-xs font-black shadow-sm border border-slate-100 active:scale-95 transition-all disabled:opacity-50">{backfillLoading ? '계산 중...' : '랭킹 재계산'}</button>
               <button onClick={handleBackfillInquiryOwners} disabled={inquiryBackfillLoading} className="px-4 py-2.5 bg-white text-indigo-500 rounded-xl text-xs font-black shadow-sm border border-slate-100 active:scale-95 transition-all disabled:opacity-50">{inquiryBackfillLoading ? '처리 중...' : '문의 작성자 필드 채우기'}</button>
+              <button onClick={handleMigrateDottedFields} disabled={backfillLoading} className="px-4 py-2.5 bg-white text-indigo-500 rounded-xl text-xs font-black shadow-sm border border-slate-100 active:scale-95 transition-all disabled:opacity-50">필드 정리</button>
               <button onClick={handleLogout} className="px-4 py-2.5 bg-white text-rose-500 rounded-xl text-xs font-black shadow-sm border border-slate-100 active:scale-95 transition-all">로그아웃</button>
             </div>
           </header>
