@@ -24,3 +24,6 @@ yarn-error.log*
 
 .vercel
 .env*.local
+
+# firebase deploy 시마다 로컬에서 갱신되는 캐시 — 커밋할 필요 없음
+/.firebase
