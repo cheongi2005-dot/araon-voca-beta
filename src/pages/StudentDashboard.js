@@ -7,22 +7,17 @@ import { useNavigate } from 'react-router-dom';
 import { LEVEL_CONFIG } from '../config/levelConfig';
 import LoadingScreen from '../components/LoadingScreen';
 import { useUserData } from '../contexts/UserDataContext';
+import { useTheme } from '../hooks/useTheme';
 
 const StudentDashboardMobile = () => {
   // --- STATE MANAGEMENT ---
   // 🎯 users/{email} 문서는 앱 전체가 공유하는 UserDataContext에서 한 번만 구독합니다.
   const { userData: student, isLoading: loading } = useUserData();
   const [weekOffset, setWeekOffset] = useState(0);
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'dark');
+  const [isDark, setIsDark] = useTheme();
   const navigate = useNavigate();
 
-  const MISTAKE_NOTE_COLOR = '#70011D'; 
-
-  // --- DARK MODE ---
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDark);
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-  }, [isDark]);
+  const MISTAKE_NOTE_COLOR = '#70011D';
 
   // --- DATA FETCHING (로그아웃 상태면 홈으로) ---
   useEffect(() => {

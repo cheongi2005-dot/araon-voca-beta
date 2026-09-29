@@ -1,6 +1,7 @@
 import AraonIcon from './AraonIcon';
 import React, { useState } from 'react';
 import { LEVEL_CONFIG } from '../config/levelConfig';
+import { parseDate } from '../utils/dateUtils';
 
 const StudentReport = ({ student, onBack, backText, isLogoutMode, onLevelChange }) => {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -93,7 +94,7 @@ const StudentReport = ({ student, onBack, backText, isLogoutMode, onLevelChange 
 
     normalizedAttendance.forEach(activity => {
       if (!activity || !activity.date) return;
-      const activityDate = new Date(activity.date);
+      const activityDate = parseDate(activity.date);
       if (activityDate >= weekStart && activityDate <= weekEnd) {
         const dayIndex = activityDate.getDay();
         const isOudap = activity.type?.includes('오답노트');
@@ -128,7 +129,7 @@ const StudentReport = ({ student, onBack, backText, isLogoutMode, onLevelChange 
     ).filter(record => {
       if (!record || !record.type) return false;
       if (!record.type.includes(activityKey)) return false;
-      const recordDate = new Date(record.date);
+      const recordDate = parseDate(record.date);
       return recordDate >= dayStart && recordDate <= dayEnd;
     }).reverse();
   };

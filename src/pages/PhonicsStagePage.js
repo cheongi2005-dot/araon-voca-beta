@@ -1,17 +1,13 @@
 import { LEVEL_CONFIG } from '../config/levelConfig';
 import AppHeader from '../components/AppHeader';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PHONICS_STAGES } from '../data/phonicsData';
+import { useTheme } from '../hooks/useTheme';
 
 const PhonicsStagePage = () => {
   const navigate = useNavigate();
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'dark');
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', isDark);
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-  }, [isDark]);
+  const [isDark, setIsDark] = useTheme();
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] dark:bg-[#0A0A0B] transition-colors duration-500 font-sans pb-10">

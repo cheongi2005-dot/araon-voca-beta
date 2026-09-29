@@ -23,3 +23,12 @@ export const getWeekKey = (date = new Date(), weekOffset = 0) => {
   monday.setUTCDate(kst.getUTCDate() + offsetToMonday + weekOffset * 7);
   return monday.toISOString().slice(0, 10);
 };
+
+// Firestore Timestamp, { seconds } 객체, 문자열을 모두 Date로 (못 읽으면 null)
+export const parseDate = (value) => {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value.seconds != null) return new Date(value.seconds * 1000);
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+};

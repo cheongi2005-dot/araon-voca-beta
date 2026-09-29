@@ -65,7 +65,8 @@ function Home() {
         const dbLevelData = levelProgress[levelKey];
         const localLevelData = safeGetItem(levelKey, { lastUpdated: 0 });
 
-        if (dbLevelData && dbLevelData.lastUpdated > (localLevelData.lastUpdated || 0)) {
+        // 다른 화면(LevelTemplate/MyVoca/LevelHome)과 같은 규칙: 최신이 이기고, 같으면 DB
+        if (dbLevelData && (dbLevelData.lastUpdated || 0) >= (localLevelData.lastUpdated || 0)) {
           const restored = JSON.parse(JSON.stringify(dbLevelData));
           Object.keys(restored).forEach(dayKey => {
             if (dayKey === 'lastUpdated') return;
